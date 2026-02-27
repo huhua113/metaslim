@@ -204,7 +204,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies }) => {
           </div>
         </div>
       </div>
-      <div className="flex-grow pb-12">
+      <div className="flex-grow pb-[200px]">
         <ResponsiveContainer width="100%" height="80%">
           <ScatterChart margin={{ top: 10, right: 20, left: 15, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -241,6 +241,15 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies }) => {
 };
 
 
+const getTargetType = (drugClass: string): string => {
+  const normalized = drugClass.toUpperCase();
+  if (normalized.includes('GIP') && normalized.includes('GLP') && normalized.includes('GCG')) return '三靶点';
+  if (normalized.includes('GIP') && normalized.includes('GLP')) return '双靶点';
+  if (normalized.includes('GLP') && normalized.includes('GCG')) return '双靶点';
+  if (normalized.includes('GLP')) return '单靶点';
+  return '其他';
+};
+
 export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies }) => {
   const data = useMemo(() => getDurationEfficacyData(studies), [studies]);
   const isMobile = useIsMobile();
@@ -248,15 +257,24 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies }) => {
   const t2dData = data.filter(d => d.hasT2D);
   const nonT2dData = data.filter(d => !d.hasT2D);
 
-  // 为图例准备唯一的药物颜色映射
-  const legendItems = useMemo(() => {
-    const items = new Map<string, { color: string, class: string }>();
+  // 为图例准备按公司和靶点分组的药物数据
+  const groupedLegend = useMemo(() => {
+    const items = new Map<string, { color: string, class: string, company: string }>();
     data.forEach(item => {
       if (!items.has(item.name)) {
-        items.set(item.name, { color: item.fill, class: item.drugClass });
+        items.set(item.name, { color: item.fill, class: item.drugClass, company: item.company });
       }
     });
-    return Array.from(items.entries());
+    
+    const grouped: Record<string, Record<string, any[]>> = {};
+    items.forEach((info, drugName) => {
+      const targetType = getTargetType(info.class);
+      if (!grouped[info.company]) grouped[info.company] = {};
+      if (!grouped[info.company][targetType]) grouped[info.company][targetType] = [];
+      grouped[info.company][targetType].push({ name: drugName, ...info });
+    });
+    
+    return grouped;
   }, [data]);
   
   return (
@@ -265,8 +283,8 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies }) => {
         <h3 className="text-lg font-bold text-slate-900 mb-2">周期与减重幅度分析</h3>
         <p className="text-xs text-slate-500 mb-4">X轴: 周期 (周) | Y轴: 减重 (%)</p>
       </div>
-      <div className="flex-grow pb-12">
-        <ResponsiveContainer width="100%" height="70%">
+      <div className="flex-grow pb-[200px]">
+        <ResponsiveContainer width="100%" height="65%">
           <ScatterChart margin={{ top: 10, right: 20, left: 15, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis type="number" dataKey="x" name="研究周期" unit="周" domain={[0, 108]} ticks={[0, 30, 60, 90, 108]} label={{ value: '周期 (周)', position: 'insideBottom', offset: -10, style: { fontSize: 12 } }} tick={{ fontSize: 10 }} />
@@ -280,13 +298,29 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies }) => {
             </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 justify-center border-t border-slate-100 pt-4">
-          {legendItems.map(([drugName, info]) => (
-            <div key={drugName} className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: info.color }}></div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-slate-900 font-bold leading-none">{drugName}</span>
-                <span className="text-[8px] text-slate-400 leading-none mt-0.5">{info.class}</span>
+        
+        <div className="mt-4 border-t border-slate-100 pt-4 space-y-4 overflow-y-auto max-h-[30%]">
+          {Object.entries(groupedLegend).map(([company, targets]) => (
+            <div key={company} className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-grow bg-slate-100"></div>
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{company}</h4>
+                <div className="h-px flex-grow bg-slate-100"></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {Object.entries(targets).map(([targetType, drugs]) => (
+                  <div key={targetType} className="flex flex-col gap-1.5">
+                    <span className="text-[9px] font-bold text-slate-400 italic px-2 py-0.5 bg-slate-50 rounded-md w-fit">{targetType}</span>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 pl-1">
+                      {drugs.map(drug => (
+                        <div key={drug.name} className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ backgroundColor: drug.color }}></div>
+                          <span className="text-[10px] text-slate-800 font-bold">{drug.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}

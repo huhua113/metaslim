@@ -149,15 +149,14 @@ const App: React.FC = () => {
   
   const [studyToDelete, setStudyToDelete] = useState<Study | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
 
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [isAdmin, setIsAdmin] = useState(() => {
-    const saved = sessionStorage.getItem('metaslim_admin_auth');
-    const urlParams = new URLSearchParams(window.location.search);
-    return saved === 'true' && urlParams.get('mode') !== 'guest';
-  });
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [dashboardSubTab, setDashboardSubTab] = useState<'efficacy' | 'safety'>('efficacy');
 
@@ -174,12 +173,28 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    // 通过 URL 参数检查管理员模式，默认开启管理员模式，除非显式指定 mode=guest
-    const params = new URLSearchParams(window.location.search);
-    setIsAdmin(params.get('mode') !== 'guest');
-  }, []);
+  const handleAdminClick = () => {
+    if (!isAdmin) {
+      setIsPasswordModalOpen(true);
+      setPasswordInput('');
+      setPasswordError(false);
+    }
+  };
 
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput === '951120') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('mode');
+      window.history.pushState({}, '', url);
+      setIsAdmin(true);
+      sessionStorage.setItem('metaslim_admin_auth', 'true');
+      setIsPasswordModalOpen(false);
+      setPasswordError(false);
+    } else {
+      setPasswordError(true);
+    }
+  };
 
   const handleSort = (key: SortKey) => {
     setSortConfig(prevConfig => {
@@ -351,20 +366,7 @@ const App: React.FC = () => {
                 )}
                 <div className="flex items-center bg-slate-100 rounded-lg p-1 ml-2">
                   <button 
-                    onClick={() => {
-                      if (!isAdmin) {
-                        const password = prompt('请输入管理员密码:');
-                        if (password === '951120') {
-                          const url = new URL(window.location.href);
-                          url.searchParams.delete('mode');
-                          window.history.pushState({}, '', url);
-                          setIsAdmin(true);
-                          sessionStorage.setItem('metaslim_admin_auth', 'true');
-                        } else if (password !== null) {
-                          alert('密码错误！');
-                        }
-                      }
-                    }}
+                    onClick={handleAdminClick}
                     className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${isAdmin ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
                     管理员
@@ -375,7 +377,6 @@ const App: React.FC = () => {
                       url.searchParams.set('mode', 'guest');
                       window.history.pushState({}, '', url);
                       setIsAdmin(false);
-                      // 我们保留 auth 状态在 session 中，但当前视图设为访客
                     }}
                     className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${!isAdmin ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                   >
@@ -463,13 +464,13 @@ const App: React.FC = () => {
                 </div>
 
                 {dashboardSubTab === 'efficacy' ? (
-                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-12 sm:p-8 sm:pb-16 animate-fade-in mb-10">
+                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-[200px] sm:p-8 sm:pb-[250px] animate-fade-in mb-10">
                     <div className="h-[520px] sm:h-[600px] md:h-[650px]">
                       <DurationEfficacyScatterChart studies={filteredStudies} />
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-12 sm:p-8 sm:pb-16 animate-fade-in mb-10">
+                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-[200px] sm:p-8 sm:pb-[250px] animate-fade-in mb-10">
                     <div className="h-[520px] sm:h-[600px] md:h-[650px]">
                       <SafetyAnalysisChart studies={filteredStudies} />
                     </div>
@@ -524,6 +525,48 @@ const App: React.FC = () => {
       {isAdmin && <EditStudyModal isOpen={isEditModalOpen} onClose={handleCloseEditModal} study={studyToEdit} />}
       {isAdmin && <ConfirmDeleteModal isOpen={isDeleteConfirmOpen} onClose={handleCancelDelete} onConfirm={handleConfirmDelete} studyName={studyToDelete?.trialName} />}
       
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scale-in">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">管理员身份验证</h3>
+            <form onSubmit={handlePasswordSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">请输入密码</label>
+                  <input 
+                    type="password" 
+                    autoFocus
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      setPasswordError(false);
+                    }}
+                    className={`w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary outline-none transition-all ${passwordError ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
+                    placeholder="••••••"
+                  />
+                  {passwordError && <p className="mt-1 text-xs text-red-500 font-medium">密码错误，请重试</p>}
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    type="button"
+                    onClick={() => setIsPasswordModalOpen(false)}
+                    className="flex-1 px-4 py-2 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-primary text-white font-bold rounded-xl hover:opacity-90 transition-all shadow-lg shadow-primary/20"
+                  >
+                    确认
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'data' && selectedStudyIds.length >= 1 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm shadow-[0_-5px_15px_-5px_rgba(0,0,0,0.1)] z-30 animate-fade-in-up">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
