@@ -464,13 +464,13 @@ const App: React.FC = () => {
                 </div>
 
                 {dashboardSubTab === 'efficacy' ? (
-                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-[200px] sm:p-8 sm:pb-[250px] animate-fade-in mb-10">
+                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-5 sm:p-8 sm:pb-6 animate-fade-in mb-10">
                     <div className="h-[520px] sm:h-[600px] md:h-[650px]">
                       <DurationEfficacyScatterChart studies={filteredStudies} />
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-[200px] sm:p-8 sm:pb-[250px] animate-fade-in mb-10">
+                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-5 sm:p-8 sm:pb-6 animate-fade-in mb-10">
                     <div className="h-[520px] sm:h-[600px] md:h-[650px]">
                       <SafetyAnalysisChart studies={filteredStudies} />
                     </div>

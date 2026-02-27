@@ -157,10 +157,32 @@ export const deleteAllStudies = async () => {
   window.dispatchEvent(new Event('local-studies-changed'));
 };
 
+const normalizeCompany = (company: string): string => {
+  if (!company) return "";
+  const c = company.trim().toUpperCase();
+  if (c.includes('LILLY') || c.includes('礼来')) return 'Eli Lilly';
+  if (c.includes('NOVO') || c.includes('诺和诺德')) return 'Novo Nordisk';
+  if (c.includes('INNOVENT') || c.includes('信达')) return 'Innovent';
+  if (c.includes('AMGEN') || c.includes('安进')) return 'Amgen';
+  if (c.includes('BOEHRINGER') || c.includes('BI') || c.includes('勃林格')) return 'Boehringer Ingelheim';
+  if (c.includes('ASTRAZENECA') || c.includes('AZ') || c.includes('阿斯利康')) return 'AstraZeneca';
+  if (c.includes('HENGRUI') || c.includes('恒瑞')) return 'Hengrui';
+  if (c.includes('PFIZER') || c.includes('辉瑞')) return 'Pfizer';
+  if (c.includes('ROCHE') || c.includes('罗氏')) return 'Roche';
+  if (c.includes('SANOFI') || c.includes('赛诺菲')) return 'Sanofi';
+  return company.trim();
+};
+
 export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
   if (!isFirebaseEnabled()) {
     // 提供初始数据并监听本地变更
-    const update = () => callback(getLocalStudies().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+    const update = () => {
+      const studies = getLocalStudies().map(s => ({
+        ...s,
+        company: normalizeCompany(s.company)
+      }));
+      callback(studies.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+    };
     update();
     window.addEventListener('local-studies-changed', update);
     return () => window.removeEventListener('local-studies-changed', update);
@@ -174,12 +196,15 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
       if (data.drugName && typeof data.drugName === 'string') {
           data.drugName = data.drugName.charAt(0).toUpperCase() + data.drugName.slice(1).toLowerCase();
       }
+      if (data.company && typeof data.company === 'string') {
+          data.company = normalizeCompany(data.company);
+      }
       studies.push({ id: doc.id, ...data } as Study);
     });
 
     // 如果 Firebase 中没有数据，则显示模拟数据，方便预览和编辑
     if (studies.length === 0) {
-      callback(MOCK_STUDIES);
+      callback(MOCK_STUDIES.map(s => ({ ...s, company: normalizeCompany(s.company) })));
     } else {
       studies.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       callback(studies);
@@ -187,6 +212,10 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
   }, (error) => {
       console.error("Firebase subscription error: ", error);
       // 发生错误时尝试回退到本地数据
-      callback(getLocalStudies());
+      const studies = getLocalStudies().map(s => ({
+        ...s,
+        company: normalizeCompany(s.company)
+      }));
+      callback(studies);
   });
 };
