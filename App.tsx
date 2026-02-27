@@ -156,9 +156,18 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   
   const [isAdmin, setIsAdmin] = useState(true);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = subscribeToStudies(setStudies);
+    const unsubscribe = subscribeToStudies((data) => {
+      setStudies(data);
+      // 如果数据中包含 mock ID，或者 Firebase 未配置，则认为是演示模式
+      if (data.some(s => s.id.startsWith('mock-') || s.id.startsWith('local-'))) {
+        setIsDemoMode(true);
+      } else {
+        setIsDemoMode(false);
+      }
+    });
     return () => unsubscribe();
   }, []);
 
@@ -332,6 +341,11 @@ const App: React.FC = () => {
               <div className="flex-shrink-0 flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-lg">M</div>
                 <span className="font-bold text-xl tracking-tight text-slate-900">MetaSlim AI</span>
+                {isDemoMode && (
+                  <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200 animate-pulse">
+                    演示模式
+                  </span>
+                )}
               </div>
               <div className="hidden sm:ml-8 sm:flex sm:space-x-1">
                 {['dashboard', 'data'].map(tab => (

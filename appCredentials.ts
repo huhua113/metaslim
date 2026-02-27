@@ -12,14 +12,14 @@
 
 // 1. 粘贴您的 Firebase 项目配置
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyAFUC-Vc-vBJITVnh2oM369ONG71RSGyXE",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "kolckm-bca2f.firebaseapp.com",
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || ""
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "kolckm-bca2f",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "kolckm-bca2f.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "840830636040",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:840830636040:web:3d72bf1ff6b9d3add401bd",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-PGKM6W04V5"
 };
 
 // FIX: Removed hardcoded GEMINI_API_KEY. As per guidelines, the API key must be accessed via process.env.API_KEY.
