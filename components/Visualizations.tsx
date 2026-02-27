@@ -25,23 +25,54 @@ const useIsMobile = (breakpoint = 640) => {
 };
 
 
-const DRUG_COLORS = ['#14B8A6', '#F59E0B', '#8B5CF6', '#EC4899', '#3B82F6', '#EF4444', '#6366F1', '#10B981'];
-
-const getDrugColorMap = (studies: Study[]): Map<string, string> => {
-    const drugNames = [...new Set(studies.map(s => s.drugName))].sort();
-    const map = new Map<string, string>();
-    drugNames.forEach((name, index) => {
-        map.set(name, DRUG_COLORS[index % DRUG_COLORS.length]);
-    });
-    return map;
+const CLASS_HUES: Record<string, number> = {
+  'GLP-1 RA': 175,      // 蓝绿色系
+  'GIP/GLP-1': 45,      // 橙黄色系
+  'GIP/GLP-1 RA': 45,   // 橙黄色系
+  'GLP-1/GCGR': 265,    // 紫色系
+  'Triple Agonist': 0,  // 红色系
 };
 
-const getSafetyData = (studies: Study[], drugColorMap: Map<string, string>) => {
+const getHueForClass = (drugClass: string): number => {
+  const normalized = drugClass.toUpperCase();
+  if (normalized.includes('GIP') && normalized.includes('GLP') && normalized.includes('GCG')) return 0;
+  if (normalized.includes('GIP') && normalized.includes('GLP')) return 45;
+  if (normalized.includes('GLP') && normalized.includes('GCG')) return 265;
+  if (normalized.includes('GLP')) return 175;
+  return 200; // 默认蓝色
+};
+
+const stringToHash = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return hash;
+};
+
+const generatePointColor = (drugClass: string, drugName: string, trialName: string) => {
+  const baseHue = getHueForClass(drugClass);
+  const drugHash = stringToHash(drugName);
+  const trialHash = stringToHash(trialName);
+  
+  // 在基础色相附近抖动 (+/- 20度)
+  const hue = (baseHue + (drugHash % 40) - 20 + 360) % 360;
+  // 饱和度在 65% - 95% 之间变化
+  const saturation = 65 + (Math.abs(trialHash) % 30);
+  // 亮度在 40% - 60% 之间变化
+  const lightness = 40 + (Math.abs(drugHash >> 2) % 20);
+  
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+};
+
+const getSafetyData = (studies: Study[]) => {
   return studies.flatMap(study => 
     study.doses
       .filter(dose => dose.weightLossPercent > 0)
       .map(dose => ({
         name: study.drugName,
+        drugClass: study.drugClass,
+        company: study.company,
         dose: dose.dose,
         trial: study.trialName,
         weightLoss: dose.weightLossPercent,
@@ -51,24 +82,25 @@ const getSafetyData = (studies: Study[], drugColorMap: Map<string, string>) => {
         constipation: dose.constipationPercent,
         sae: dose.saePercent,
         hasT2D: study.hasT2D,
-        fill: drugColorMap.get(study.drugName) || '#CCCCCC'
+        fill: generatePointColor(study.drugClass, study.drugName, study.trialName)
       }))
   );
 };
 
-
-const getDurationEfficacyData = (studies: Study[], drugColorMap: Map<string, string>) => {
+const getDurationEfficacyData = (studies: Study[]) => {
   return studies.flatMap(study => 
     study.doses
       .filter(dose => dose.weightLossPercent > 0)
       .map(dose => ({
         name: study.drugName,
+        drugClass: study.drugClass,
+        company: study.company,
         dose: dose.dose,
         trial: study.trialName,
         x: study.durationWeeks,
         y: dose.weightLossPercent,
         hasT2D: study.hasT2D,
-        fill: drugColorMap.get(study.drugName) || '#CCCCCC'
+        fill: generatePointColor(study.drugClass, study.drugName, study.trialName)
       }))
   );
 };
@@ -119,6 +151,10 @@ const CustomTooltip = ({ active, payload }: any) => {
     return (
       <div className="bg-white/80 backdrop-blur-sm p-3 border border-slate-200 shadow-lg rounded-lg text-xs">
           <p className="font-bold text-slate-800" style={{ color: data.fill }}>{data.name} ({data.dose})</p>
+          <div className="flex gap-2 mt-1 mb-1">
+            <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px]">{data.drugClass}</span>
+            <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px]">{data.company}</span>
+          </div>
           <p className="text-slate-600">试验: {data.trial}</p>
           <div className="mt-2 space-y-1">
             {xAxisLabel && (
@@ -140,13 +176,12 @@ const CustomTooltip = ({ active, payload }: any) => {
 
 export const SafetyAnalysisChart: React.FC<Props> = ({ studies }) => {
   const [activeTab, setActiveTab] = useState<AdverseEventType>('nausea');
-  const drugColorMap = useMemo(() => getDrugColorMap(studies), [studies]);
   const isMobile = useIsMobile();
 
   const data = useMemo(() => {
-    const allData = getSafetyData(studies, drugColorMap);
+    const allData = getSafetyData(studies);
     return allData.filter(item => item[activeTab] > 0);
-  }, [studies, activeTab, drugColorMap]);
+  }, [studies, activeTab]);
   
   const t2dData = data.filter(d => d.hasT2D);
   const nonT2dData = data.filter(d => !d.hasT2D);
@@ -169,8 +204,8 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies }) => {
           </div>
         </div>
       </div>
-      <div className="flex-grow">
-        <ResponsiveContainer width="100%" height="85%">
+      <div className="flex-grow pb-6">
+        <ResponsiveContainer width="100%" height="80%">
           <ScatterChart margin={{ top: 10, right: 20, left: 15, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis 
@@ -207,12 +242,22 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies }) => {
 
 
 export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies }) => {
-  const drugColorMap = useMemo(() => getDrugColorMap(studies), [studies]);
-  const data = useMemo(() => getDurationEfficacyData(studies, drugColorMap), [studies, drugColorMap]);
+  const data = useMemo(() => getDurationEfficacyData(studies), [studies]);
   const isMobile = useIsMobile();
   
   const t2dData = data.filter(d => d.hasT2D);
   const nonT2dData = data.filter(d => !d.hasT2D);
+
+  // 为图例准备唯一的药物颜色映射
+  const legendItems = useMemo(() => {
+    const items = new Map<string, { color: string, class: string }>();
+    data.forEach(item => {
+      if (!items.has(item.name)) {
+        items.set(item.name, { color: item.fill, class: item.drugClass });
+      }
+    });
+    return Array.from(items.entries());
+  }, [data]);
   
   return (
     <div className="h-full w-full flex flex-col">
@@ -220,8 +265,8 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies }) => {
         <h3 className="text-lg font-bold text-slate-900 mb-2">周期与减重幅度分析</h3>
         <p className="text-xs text-slate-500 mb-4">X轴: 周期 (周) | Y轴: 减重 (%)</p>
       </div>
-      <div className="flex-grow">
-        <ResponsiveContainer width="100%" height="80%">
+      <div className="flex-grow pb-8">
+        <ResponsiveContainer width="100%" height="70%">
           <ScatterChart margin={{ top: 10, right: 20, left: 15, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis type="number" dataKey="x" name="研究周期" unit="周" domain={[0, 108]} ticks={[0, 30, 60, 90, 108]} label={{ value: '周期 (周)', position: 'insideBottom', offset: -10, style: { fontSize: 12 } }} tick={{ fontSize: 10 }} />
@@ -235,11 +280,14 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies }) => {
             </Scatter>
           </ScatterChart>
         </ResponsiveContainer>
-        <div className="mt-2 flex flex-wrap gap-3 justify-center">
-          {Array.from(drugColorMap.entries()).map(([drugName, color]) => (
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 justify-center border-t border-slate-100 pt-4">
+          {legendItems.map(([drugName, info]) => (
             <div key={drugName} className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }}></div>
-              <span className="text-xs text-slate-600 font-medium">{drugName}</span>
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: info.color }}></div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-900 font-bold leading-none">{drugName}</span>
+                <span className="text-[8px] text-slate-400 leading-none mt-0.5">{info.class}</span>
+              </div>
             </div>
           ))}
         </div>

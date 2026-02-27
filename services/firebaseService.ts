@@ -176,8 +176,14 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
       }
       studies.push({ id: doc.id, ...data } as Study);
     });
-    studies.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    callback(studies);
+
+    // 如果 Firebase 中没有数据，则显示模拟数据，方便预览和编辑
+    if (studies.length === 0) {
+      callback(MOCK_STUDIES);
+    } else {
+      studies.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      callback(studies);
+    }
   }, (error) => {
       console.error("Firebase subscription error: ", error);
       // 发生错误时尝试回退到本地数据

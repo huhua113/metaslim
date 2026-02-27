@@ -157,6 +157,7 @@ const App: React.FC = () => {
   
   const [isAdmin, setIsAdmin] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [dashboardSubTab, setDashboardSubTab] = useState<'efficacy' | 'safety'>('efficacy');
 
   useEffect(() => {
     const unsubscribe = subscribeToStudies((data) => {
@@ -411,17 +412,34 @@ const App: React.FC = () => {
                 
                 <FilterBar activeFilters={activeDashboardFilters} onClick={handleDashboardFilterClick} />
 
-                <div className="bg-white rounded-2xl shadow-lg p-3">
-                  <div className="h-[320px] sm:h-[380px] md:h-[450px]">
-                    <DurationEfficacyScatterChart studies={filteredStudies} />
-                  </div>
-                </div>
-                <div className="bg-white rounded-2xl shadow-lg p-3">
-                  <div className="h-[320px] sm:h-[380px] md:h-[450px]">
-                    <SafetyAnalysisChart studies={filteredStudies} />
-                  </div>
+                <div className="flex p-1 bg-slate-100 rounded-xl w-fit">
+                  <button 
+                    onClick={() => setDashboardSubTab('efficacy')}
+                    className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${dashboardSubTab === 'efficacy' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    周期与减重
+                  </button>
+                  <button 
+                    onClick={() => setDashboardSubTab('safety')}
+                    className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${dashboardSubTab === 'safety' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    疗效与安全性
+                  </button>
                 </div>
 
+                {dashboardSubTab === 'efficacy' ? (
+                  <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 animate-fade-in mb-10">
+                    <div className="h-[520px] sm:h-[600px] md:h-[650px]">
+                      <DurationEfficacyScatterChart studies={filteredStudies} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 animate-fade-in mb-10">
+                    <div className="h-[520px] sm:h-[600px] md:h-[650px]">
+                      <SafetyAnalysisChart studies={filteredStudies} />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             {activeTab === 'data' && (
