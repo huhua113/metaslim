@@ -204,7 +204,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies }) => {
           </div>
         </div>
       </div>
-      <div className="flex-grow pb-6">
+      <div className="flex-grow pb-12">
         <ResponsiveContainer width="100%" height="80%">
           <ScatterChart margin={{ top: 10, right: 20, left: 15, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -265,7 +265,7 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies }) => {
         <h3 className="text-lg font-bold text-slate-900 mb-2">周期与减重幅度分析</h3>
         <p className="text-xs text-slate-500 mb-4">X轴: 周期 (周) | Y轴: 减重 (%)</p>
       </div>
-      <div className="flex-grow pb-8">
+      <div className="flex-grow pb-12">
         <ResponsiveContainer width="100%" height="70%">
           <ScatterChart margin={{ top: 10, right: 20, left: 15, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" />

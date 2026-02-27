@@ -49,14 +49,12 @@ const StudyCard: React.FC<{
         <h3 className="text-base font-bold text-slate-900">{study.drugName}</h3>
         <p className="text-xs text-slate-500">{study.company}</p>
       </div>
-      {isAdmin && (
-        <input
-          type="checkbox"
-          className="h-5 w-5 rounded-md border-gray-300 text-primary focus:ring-primary mt-1 flex-shrink-0"
-          checked={isSelected}
-          onChange={() => onSelect(study.id)}
-        />
-      )}
+      <input
+        type="checkbox"
+        className="h-5 w-5 rounded-md border-gray-300 text-primary focus:ring-primary mt-1 flex-shrink-0"
+        checked={isSelected}
+        onChange={() => onSelect(study.id)}
+      />
     </div>
     <div className="mt-3 text-xs space-y-1.5 text-slate-600 border-t border-slate-100 pt-3">
       <p><span className="font-semibold text-primary">{study.trialName}</span> | {study.phase} | {study.durationWeeks} 周</p>
@@ -155,7 +153,11 @@ const App: React.FC = () => {
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'createdAt', direction: 'desc' });
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [isAdmin, setIsAdmin] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(() => {
+    const saved = sessionStorage.getItem('metaslim_admin_auth');
+    const urlParams = new URLSearchParams(window.location.search);
+    return saved === 'true' && urlParams.get('mode') !== 'guest';
+  });
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [dashboardSubTab, setDashboardSubTab] = useState<'efficacy' | 'safety'>('efficacy');
 
@@ -347,6 +349,39 @@ const App: React.FC = () => {
                     演示模式
                   </span>
                 )}
+                <div className="flex items-center bg-slate-100 rounded-lg p-1 ml-2">
+                  <button 
+                    onClick={() => {
+                      if (!isAdmin) {
+                        const password = prompt('请输入管理员密码:');
+                        if (password === '951120') {
+                          const url = new URL(window.location.href);
+                          url.searchParams.delete('mode');
+                          window.history.pushState({}, '', url);
+                          setIsAdmin(true);
+                          sessionStorage.setItem('metaslim_admin_auth', 'true');
+                        } else if (password !== null) {
+                          alert('密码错误！');
+                        }
+                      }
+                    }}
+                    className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${isAdmin ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    管理员
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('mode', 'guest');
+                      window.history.pushState({}, '', url);
+                      setIsAdmin(false);
+                      // 我们保留 auth 状态在 session 中，但当前视图设为访客
+                    }}
+                    className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${!isAdmin ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    访客
+                  </button>
+                </div>
               </div>
               <div className="hidden sm:ml-8 sm:flex sm:space-x-1">
                 {['dashboard', 'data'].map(tab => (
@@ -428,13 +463,13 @@ const App: React.FC = () => {
                 </div>
 
                 {dashboardSubTab === 'efficacy' ? (
-                  <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 animate-fade-in mb-10">
+                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-12 sm:p-8 sm:pb-16 animate-fade-in mb-10">
                     <div className="h-[520px] sm:h-[600px] md:h-[650px]">
                       <DurationEfficacyScatterChart studies={filteredStudies} />
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-3xl shadow-xl p-6 sm:p-8 animate-fade-in mb-10">
+                  <div className="bg-white rounded-3xl shadow-xl p-6 pb-12 sm:p-8 sm:pb-16 animate-fade-in mb-10">
                     <div className="h-[520px] sm:h-[600px] md:h-[650px]">
                       <SafetyAnalysisChart studies={filteredStudies} />
                     </div>
@@ -477,7 +512,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
                  <div className="md:hidden space-y-4">{sortedAndFilteredStudies.map((study) => <StudyCard key={study.id} study={study} isSelected={selectedStudyIds.includes(study.id)} onSelect={handleSelectStudy} onEdit={handleOpenEditModal} onDelete={handleInitiateDelete} isAdmin={isAdmin} />)}</div>
-                 <div className="hidden md:block bg-white shadow-lg rounded-2xl overflow-hidden"><table className="min-w-full divide-y divide-slate-100"><thead className="bg-slate-50"><tr>{isAdmin && <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-12">选择</th>}<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">药物信息</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">试验设计</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">剂量 / 效果 / 安全性</th>{isAdmin && <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>}</tr></thead><tbody className="bg-white divide-y divide-slate-100">{sortedAndFilteredStudies.map((study)=><tr key={study.id} className="hover:bg-slate-50/50 transition-colors">{isAdmin && <td className="px-4 py-4"><input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" checked={selectedStudyIds.includes(study.id)} onChange={()=>handleSelectStudy(study.id)}/></td>}<td className="px-6 py-4"><div className="flex flex-col"><span className="text-sm font-bold text-slate-900">{study.drugName}</span><span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full w-fit mt-1">{study.drugClass}</span><span className="text-xs text-slate-400 mt-0.5">{study.company}</span></div></td><td className="px-6 py-4"><div className="flex flex-col text-sm text-slate-600"><span className="font-medium text-primary">{study.trialName}</span><span className="mt-1">{study.phase} | {study.durationWeeks} 周</span><div className="flex gap-2 mt-1"><span className="text-xs font-medium px-2 py-0.5 rounded-full text-gray-700 bg-gray-100">{study.formulation}</span><span className="text-xs font-medium px-2 py-0.5 rounded-full text-gray-700 bg-gray-100">{study.frequency}</span></div><div className="flex gap-2 mt-1"><span className={`text-xs font-medium ${study.hasT2D ? 'text-orange' : 'text-primary'}`}>{study.hasT2D ?'T2D 患者':'非糖尿病'}</span>{study.isChineseCohort && <span className="text-xs font-medium text-red-600">中国人</span>}</div></div></td><td className="px-6 py-4"><div className="space-y-2">{study.doses.map((dose,idx)=><div key={idx} className="flex items-center text-xs space-x-3"><span className="w-12 font-medium text-slate-700 bg-slate-100 px-1 rounded">{dose.dose}</span><div className="flex items-center space-x-1 w-20"><span className="text-emerald-600 font-bold">↓ {dose.weightLossPercent}%</span></div><div className="flex items-center space-x-2 text-slate-400"><span title="恶心">🤢 {dose.nauseaPercent}%</span><span title="呕吐">🤮 {dose.vomitingPercent}%</span></div></div>)}</div></td>{isAdmin && <td className="px-6 py-4 text-right text-sm font-medium"><div className="flex justify-end items-center gap-4"><button onClick={() => handleOpenEditModal(study)} className="font-medium text-primary hover:text-primary/80 transition-colors">编辑</button><button onClick={() => handleInitiateDelete(study)} className="font-medium text-red-500 hover:text-red-700 transition-colors">删除</button></div></td>}</tr>)}</tbody></table></div>
+                  <div className="hidden md:block bg-white shadow-lg rounded-2xl overflow-hidden"><table className="min-w-full divide-y divide-slate-100"><thead className="bg-slate-50"><tr><th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-12">选择</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">药物信息</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">试验设计</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">剂量 / 效果 / 安全性</th>{isAdmin && <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>}</tr></thead><tbody className="bg-white divide-y divide-slate-100">{sortedAndFilteredStudies.map((study)=><tr key={study.id} className="hover:bg-slate-50/50 transition-colors"><td className="px-4 py-4"><input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" checked={selectedStudyIds.includes(study.id)} onChange={()=>handleSelectStudy(study.id)}/></td><td className="px-6 py-4"><div className="flex flex-col"><span className="text-sm font-bold text-slate-900">{study.drugName}</span><span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full w-fit mt-1">{study.drugClass}</span><span className="text-xs text-slate-400 mt-0.5">{study.company}</span></div></td><td className="px-6 py-4"><div className="flex flex-col text-sm text-slate-600"><span className="font-medium text-primary">{study.trialName}</span><span className="mt-1">{study.phase} | {study.durationWeeks} 周</span><div className="flex gap-2 mt-1"><span className="text-xs font-medium px-2 py-0.5 rounded-full text-gray-700 bg-gray-100">{study.formulation}</span><span className="text-xs font-medium px-2 py-0.5 rounded-full text-gray-700 bg-gray-100">{study.frequency}</span></div><div className="flex gap-2 mt-1"><span className={`text-xs font-medium ${study.hasT2D ? 'text-orange' : 'text-primary'}`}>{study.hasT2D ?'T2D 患者':'非糖尿病'}</span>{study.isChineseCohort && <span className="text-xs font-medium text-red-600">中国人</span>}</div></div></td><td className="px-6 py-4"><div className="space-y-2">{study.doses.map((dose,idx)=><div key={idx} className="flex items-center text-xs space-x-3"><span className="w-12 font-medium text-slate-700 bg-slate-100 px-1 rounded">{dose.dose}</span><div className="flex items-center space-x-1 w-20"><span className="text-emerald-600 font-bold">↓ {dose.weightLossPercent}%</span></div><div className="flex items-center space-x-2 text-slate-400"><span title="恶心">🤢 {dose.nauseaPercent}%</span><span title="呕吐">🤮 {dose.vomitingPercent}%</span></div></div>)}</div></td>{isAdmin && <td className="px-6 py-4 text-right text-sm font-medium"><div className="flex justify-end items-center gap-4"><button onClick={() => handleOpenEditModal(study)} className="font-medium text-primary hover:text-primary/80 transition-colors">编辑</button><button onClick={() => handleInitiateDelete(study)} className="font-medium text-red-500 hover:text-red-700 transition-colors">删除</button></div></td>}</tr>)}</tbody></table></div>
               </div>
             )}
           </>
@@ -489,7 +524,7 @@ const App: React.FC = () => {
       {isAdmin && <EditStudyModal isOpen={isEditModalOpen} onClose={handleCloseEditModal} study={studyToEdit} />}
       {isAdmin && <ConfirmDeleteModal isOpen={isDeleteConfirmOpen} onClose={handleCancelDelete} onConfirm={handleConfirmDelete} studyName={studyToDelete?.trialName} />}
       
-      {isAdmin && activeTab === 'data' && selectedStudyIds.length >= 1 && (
+      {activeTab === 'data' && selectedStudyIds.length >= 1 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm shadow-[0_-5px_15px_-5px_rgba(0,0,0,0.1)] z-30 animate-fade-in-up">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between">
@@ -501,12 +536,14 @@ const App: React.FC = () => {
                 >
                   清空选择
                 </button>
-                <button
-                  onClick={handleDeleteSelected}
-                  className="px-4 py-2 text-red-600 bg-red-50 text-sm font-bold rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  删除选中
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={handleDeleteSelected}
+                    className="px-4 py-2 text-red-600 bg-red-50 text-sm font-bold rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    删除选中
+                  </button>
+                )}
                 {selectedStudyIds.length >= 2 && (
                   <button onClick={() => setActiveTab('comparison')} className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:opacity-90 transition-colors shadow-md shadow-primary/30">
                     对比分析
