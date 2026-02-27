@@ -177,10 +177,16 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
   if (!isFirebaseEnabled()) {
     // 提供初始数据并监听本地变更
     const update = () => {
-      const studies = getLocalStudies().map(s => ({
-        ...s,
-        company: normalizeCompany(s.company)
-      }));
+      const studies = getLocalStudies().map(s => {
+        const drugName = s.drugName ? (s.drugName.charAt(0).toUpperCase() + s.drugName.slice(1).toLowerCase()) : s.drugName;
+        let company = s.company;
+        if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
+          company = 'Pfizer';
+        } else {
+          company = normalizeCompany(company);
+        }
+        return { ...s, drugName, company };
+      });
       callback(studies.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
     };
     update();
@@ -193,18 +199,34 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
     const studies: Study[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
-      if (data.drugName && typeof data.drugName === 'string') {
-          data.drugName = data.drugName.charAt(0).toUpperCase() + data.drugName.slice(1).toLowerCase();
+      let drugName = data.drugName;
+      if (drugName && typeof drugName === 'string') {
+          drugName = drugName.charAt(0).toUpperCase() + drugName.slice(1).toLowerCase();
       }
-      if (data.company && typeof data.company === 'string') {
-          data.company = normalizeCompany(data.company);
+      
+      let company = data.company;
+      // 特殊规则：Ecnoglutide 属于辉瑞 (Pfizer)
+      if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
+          company = 'Pfizer';
+      } else if (company && typeof company === 'string') {
+          company = normalizeCompany(company);
       }
-      studies.push({ id: doc.id, ...data } as Study);
+      
+      studies.push({ id: doc.id, ...data, drugName, company } as Study);
     });
 
     // 如果 Firebase 中没有数据，则显示模拟数据，方便预览和编辑
     if (studies.length === 0) {
-      callback(MOCK_STUDIES.map(s => ({ ...s, company: normalizeCompany(s.company) })));
+      callback(MOCK_STUDIES.map(s => {
+        const drugName = s.drugName ? (s.drugName.charAt(0).toUpperCase() + s.drugName.slice(1).toLowerCase()) : s.drugName;
+        let company = s.company;
+        if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
+          company = 'Pfizer';
+        } else {
+          company = normalizeCompany(company);
+        }
+        return { ...s, drugName, company };
+      }));
     } else {
       studies.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       callback(studies);
@@ -212,10 +234,16 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
   }, (error) => {
       console.error("Firebase subscription error: ", error);
       // 发生错误时尝试回退到本地数据
-      const studies = getLocalStudies().map(s => ({
-        ...s,
-        company: normalizeCompany(s.company)
-      }));
+      const studies = getLocalStudies().map(s => {
+        const drugName = s.drugName ? (s.drugName.charAt(0).toUpperCase() + s.drugName.slice(1).toLowerCase()) : s.drugName;
+        let company = s.company;
+        if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
+          company = 'Pfizer';
+        } else {
+          company = normalizeCompany(company);
+        }
+        return { ...s, drugName, company };
+      });
       callback(studies);
   });
 };
