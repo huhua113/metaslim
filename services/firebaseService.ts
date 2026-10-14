@@ -26,11 +26,23 @@ const getLocalStudies = (): Study[] => {
   const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored) as Study[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // 自动补充尚未包含的预置临床基准研究 (避免重复)
+        const existingKeys = new Set(parsed.map(s => `${(s.drugName || '').trim()}_${(s.trialName || '').trim()}`.toLowerCase()));
+        const missingMocks = MOCK_STUDIES.filter(m => !existingKeys.has(`${m.drugName.trim()}_${m.trialName.trim()}`.toLowerCase()));
+        if (missingMocks.length > 0) {
+          const merged = [...parsed, ...missingMocks];
+          saveLocalStudies(merged);
+          return merged;
+        }
+        return parsed;
+      }
     } catch (e) {
       console.error("Failed to parse local studies:", e);
     }
   }
+  saveLocalStudies(MOCK_STUDIES);
   return MOCK_STUDIES;
 };
 
@@ -161,14 +173,14 @@ const normalizeCompany = (company: string): string => {
   if (!company) return "";
   const c = company.trim().toUpperCase();
   if (c.includes('LILLY') || c.includes('礼来')) return 'Eli Lilly';
-  if (c.includes('NOVO') || c.includes('诺和诺德')) return 'Novo Nordisk';
+  if (c.includes('NOVO') || c.includes('诺和诺德') || c.includes('诺和')) return 'Novo Nordisk';
   if (c.includes('INNOVENT') || c.includes('信达')) return 'Innovent';
   if (c.includes('AMGEN') || c.includes('安进')) return 'Amgen';
   if (c.includes('BOEHRINGER') || c.includes('BI') || c.includes('勃林格')) return 'Boehringer Ingelheim';
   if (c.includes('ASTRAZENECA') || c.includes('AZ') || c.includes('阿斯利康')) return 'AstraZeneca';
   if (c.includes('HENGRUI') || c.includes('恒瑞')) return 'Hengrui';
   if (c.includes('PFIZER') || c.includes('辉瑞')) return 'Pfizer';
-  if (c.includes('ROCHE') || c.includes('罗氏')) return 'Roche';
+  if (c.includes('ROCHE') || c.includes('罗氏') || c.includes('CARMOT')) return 'Roche';
   if (c.includes('SANOFI') || c.includes('赛诺菲')) return 'Sanofi';
   return company.trim();
 };
@@ -215,22 +227,21 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
       studies.push({ id: doc.id, ...data, drugName, company } as Study);
     });
 
-    // 如果 Firebase 中没有数据，则显示模拟数据，方便预览和编辑
-    if (studies.length === 0) {
-      callback(MOCK_STUDIES.map(s => {
-        const drugName = s.drugName ? (s.drugName.charAt(0).toUpperCase() + s.drugName.slice(1).toLowerCase()) : s.drugName;
-        let company = s.company;
-        if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
-          company = 'Pfizer';
-        } else {
-          company = normalizeCompany(company);
-        }
-        return { ...s, drugName, company };
-      }));
-    } else {
-      studies.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      callback(studies);
-    }
+    // 智能合并标准基准队列，确保各类别的临床数据完整呈现
+    const existingKeys = new Set(studies.map(s => `${(s.drugName || '').trim()}_${(s.trialName || '').trim()}`.toLowerCase()));
+    const missingBenchmarks = MOCK_STUDIES.filter(m => !existingKeys.has(`${m.drugName.trim()}_${m.trialName.trim()}`.toLowerCase())).map(s => {
+      const drugName = s.drugName ? (s.drugName.charAt(0).toUpperCase() + s.drugName.slice(1).toLowerCase()) : s.drugName;
+      let company = s.company;
+      if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
+        company = 'Pfizer';
+      } else {
+        company = normalizeCompany(company);
+      }
+      return { ...s, drugName, company };
+    });
+
+    const combined = [...studies, ...missingBenchmarks].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    callback(combined);
   }, (error) => {
       console.error("Firebase subscription error: ", error);
       // 发生错误时尝试回退到本地数据

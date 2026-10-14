@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Study, DoseData } from './types';
+import { Study, DoseData, DrugCategory, DRUG_CATEGORIES, getStudyDrugCategory } from './types';
 import { 
   subscribeToStudies, 
   deleteStudy, 
@@ -42,20 +42,34 @@ const StudyCard: React.FC<{
   onEdit: (study: Study) => void,
   onDelete: (study: Study) => void,
   isAdmin: boolean,
-}> = ({ study, isSelected, onSelect, onEdit, onDelete, isAdmin }) => (
-  <div className="bg-white rounded-2xl shadow-lg p-4 animate-fade-in-up">
-    <div className="flex justify-between items-start">
-      <div>
-        <h3 className="text-base font-bold text-slate-900">{study.drugName}</h3>
-        <p className="text-xs text-slate-500">{study.company}</p>
+}> = ({ study, isSelected, onSelect, onEdit, onDelete, isAdmin }) => {
+  const cat = getStudyDrugCategory(study);
+  const catInfo = DRUG_CATEGORIES.find(c => c.key === cat);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg p-4 animate-fade-in-up">
+      <div className="flex justify-between items-start">
+        <div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h3 className="text-base font-bold text-slate-900">{study.drugName}</h3>
+            {catInfo && (
+              <span 
+                className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs" 
+                style={{ backgroundColor: catInfo.color }}
+              >
+                {catInfo.label}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">{study.company}</p>
+        </div>
+        <input
+          type="checkbox"
+          className="h-5 w-5 rounded-md border-gray-300 text-primary focus:ring-primary mt-1 flex-shrink-0"
+          checked={isSelected}
+          onChange={() => onSelect(study.id)}
+        />
       </div>
-      <input
-        type="checkbox"
-        className="h-5 w-5 rounded-md border-gray-300 text-primary focus:ring-primary mt-1 flex-shrink-0"
-        checked={isSelected}
-        onChange={() => onSelect(study.id)}
-      />
-    </div>
     <div className="mt-3 text-xs space-y-1.5 text-slate-600 border-t border-slate-100 pt-3">
       <p><span className="font-semibold text-primary">{study.trialName}</span> | {study.phase} | {study.durationWeeks} 周</p>
       <div className="flex gap-2 items-center flex-wrap">
@@ -93,16 +107,15 @@ const StudyCard: React.FC<{
       </div>
     )}
   </div>
-);
+  );
+};
 
-type DashboardFilter = 'all' | 'nonT2D' | 't2d' | 'chinese' | '皮下注射' | '口服';
+type DashboardFilter = 'all' | 'nonT2D' | 't2d' | 'chinese';
 const dashboardFilters: { key: DashboardFilter; label: string }[] = [
   { key: 'all', label: '全部人群' },
   { key: 'nonT2D', label: '非糖尿病' },
   { key: 't2d', label: 'T2D' },
-  { key: 'chinese', label: '中国人' },
-  { key: '皮下注射', label: '皮下注射' },
-  { key: '口服', label: '口服' },
+  { key: 'chinese', label: '中国人群' },
 ];
 
 type SortKey = 'createdAt' | 'drugName';
@@ -116,17 +129,87 @@ const SortIcon: React.FC<{ direction: 'asc' | 'desc' }> = ({ direction }) => (
     </svg>
 );
 
+// 药物大类选择选项卡组件 (GLP-1注射、GLP-1口服、GLP-1+GIP、GLP-1+GCG、三靶点、胰淀素+、其他)
+const DrugCategoryTabBar: React.FC<{
+  activeCategory: DrugCategory;
+  onSelect: (cat: DrugCategory) => void;
+  studies: Study[];
+}> = ({ activeCategory, onSelect, studies }) => {
+  const counts = useMemo(() => {
+    const map: Record<DrugCategory, number> = {
+      all: studies.length,
+      glp1_inject: 0,
+      glp1_oral: 0,
+      glp1_gip: 0,
+      glp1_gcg: 0,
+      triple: 0,
+      amylin: 0,
+      other: 0,
+    };
+    studies.forEach(s => {
+      const cat = getStudyDrugCategory(s);
+      map[cat] = (map[cat] || 0) + 1;
+    });
+    return map;
+  }, [studies]);
+
+  return (
+    <div className="bg-white p-3 rounded-2xl shadow-lg border border-slate-100">
+      <div className="flex items-center justify-between mb-2.5 px-1">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-primary"></span>
+          <span className="text-xs font-bold text-slate-900">药物类型选项卡</span>
+          <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-medium">按靶点机制筛选</span>
+        </div>
+        <span className="text-[11px] text-slate-400 font-medium">已匹配 {counts[activeCategory] || 0} 项队列</span>
+      </div>
+      <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1 pt-0.5">
+        {DRUG_CATEGORIES.map(cat => {
+          const isActive = activeCategory === cat.key;
+          const count = counts[cat.key] || 0;
+          return (
+            <button
+              key={cat.key}
+              onClick={() => onSelect(cat.key)}
+              title={cat.description}
+              className={`flex-shrink-0 flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
+                isActive 
+                  ? 'bg-primary text-white shadow-md shadow-primary/25 scale-[1.02]' 
+                  : 'bg-slate-50/90 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
+              }`}
+            >
+              {cat.key !== 'all' && (
+                <span 
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-xs" 
+                  style={{ backgroundColor: isActive ? '#ffffff' : cat.color }}
+                />
+              )}
+              <span>{cat.label}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                isActive ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const FilterBar: React.FC<{
   activeFilters: DashboardFilter[];
   onClick: (filter: DashboardFilter) => void;
 }> = ({ activeFilters, onClick }) => (
-  <div className="bg-white p-2 rounded-2xl shadow-lg">
-    <div className="flex flex-wrap justify-start items-center gap-1">
+  <div className="bg-white p-2.5 rounded-2xl shadow-lg border border-slate-100">
+    <div className="flex flex-wrap justify-start items-center gap-1.5">
+      <span className="text-xs font-bold text-slate-500 px-2">细分人群:</span>
       {dashboardFilters.map(filter => (
         <button 
           key={filter.key} 
           onClick={() => onClick(filter.key)}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${activeFilters.includes(filter.key) ? 'bg-primary text-white shadow' : 'text-slate-600 hover:bg-slate-100'}`}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${activeFilters.includes(filter.key) ? 'bg-slate-800 text-white shadow-xs font-bold' : 'text-slate-600 hover:bg-slate-100'}`}
         >
           {filter.label}
         </button>
@@ -142,6 +225,7 @@ const App: React.FC = () => {
   const [isManualAddModalOpen, setIsManualAddModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'data' | 'comparison'>('dashboard');
   const [selectedStudyIds, setSelectedStudyIds] = useState<string[]>([]);
+  const [activeDrugCategory, setActiveDrugCategory] = useState<DrugCategory>('all');
   const [activeDashboardFilters, setActiveDashboardFilters] = useState<DashboardFilter[]>(['all']);
   
   const [studyToEdit, setStudyToEdit] = useState<Study | null>(null);
@@ -232,7 +316,12 @@ const App: React.FC = () => {
   const filteredStudies = useMemo(() => {
     let studiesToFilter = studies;
 
-    // Dashboard filters (population, formulation, etc.)
+    // 1. 药物大类选项卡筛选 (GLP-1注射、GLP-1口服、GLP-1+GIP、GLP-1+GCG、三靶点、胰淀素+、其他)
+    if (activeDrugCategory !== 'all') {
+      studiesToFilter = studiesToFilter.filter(study => getStudyDrugCategory(study) === activeDrugCategory);
+    }
+
+    // 2. 细分人群过滤 (非糖尿病、T2D、中国人群)
     if (!activeDashboardFilters.includes('all') && activeDashboardFilters.length > 0) {
         studiesToFilter = studiesToFilter.filter(study => {
             return activeDashboardFilters.every(filter => {
@@ -240,27 +329,25 @@ const App: React.FC = () => {
                     case 't2d': return study.hasT2D;
                     case 'nonT2D': return !study.hasT2D;
                     case 'chinese': return study.isChineseCohort;
-                    case '皮下注射': return study.formulation === '皮下注射';
-                    case '口服': return study.formulation === '口服';
                     default: return true;
                 }
             });
         });
     }
     
-    // Search term filter (only applies to data list view logic)
+    // 3. 关键词检索过滤
     if (activeTab === 'data' && searchTerm.trim()) {
         const lowercasedTerm = searchTerm.toLowerCase();
         studiesToFilter = studiesToFilter.filter(study => 
-            study.drugName.toLowerCase().includes(lowercasedTerm) ||
-            study.company.toLowerCase().includes(lowercasedTerm) ||
-            study.trialName.toLowerCase().includes(lowercasedTerm) ||
-            study.drugClass.toLowerCase().includes(lowercasedTerm)
+            (study.drugName || '').toLowerCase().includes(lowercasedTerm) ||
+            (study.company || '').toLowerCase().includes(lowercasedTerm) ||
+            (study.trialName || '').toLowerCase().includes(lowercasedTerm) ||
+            (study.drugClass || '').toLowerCase().includes(lowercasedTerm)
         );
     }
 
     return studiesToFilter;
-  }, [studies, activeDashboardFilters, searchTerm, activeTab]);
+  }, [studies, activeDrugCategory, activeDashboardFilters, searchTerm, activeTab]);
 
   const sortedAndFilteredStudies = useMemo(() => {
     const getPhaseNumber = (phase: string): number => {
@@ -446,6 +533,7 @@ const App: React.FC = () => {
                   <StatCard title="涉及药物种类" value={new Set(studies.map(s => s.drugClass)).size} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v4.517a1 1 0 01-1.447.894L10 8v4.517A1 1 0 018.553 13.41l-1-1V4z" /></svg>} styleIndex={1} />
                 </div>
                 
+                <DrugCategoryTabBar activeCategory={activeDrugCategory} onSelect={setActiveDrugCategory} studies={studies} />
                 <FilterBar activeFilters={activeDashboardFilters} onClick={handleDashboardFilterClick} />
 
                 <div className="flex p-1 bg-slate-100 rounded-xl w-fit">
@@ -480,7 +568,8 @@ const App: React.FC = () => {
             )}
             {activeTab === 'data' && (
               <div className="animate-fade-in space-y-4">
-                 <FilterBar activeFilters={activeDashboardFilters} onClick={handleDashboardFilterClick} />
+                <DrugCategoryTabBar activeCategory={activeDrugCategory} onSelect={setActiveDrugCategory} studies={studies} />
+                <FilterBar activeFilters={activeDashboardFilters} onClick={handleDashboardFilterClick} />
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="w-full md:w-auto relative">
                         <span className="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -513,7 +602,13 @@ const App: React.FC = () => {
                     </div>
                 </div>
                  <div className="md:hidden space-y-4">{sortedAndFilteredStudies.map((study) => <StudyCard key={study.id} study={study} isSelected={selectedStudyIds.includes(study.id)} onSelect={handleSelectStudy} onEdit={handleOpenEditModal} onDelete={handleInitiateDelete} isAdmin={isAdmin} />)}</div>
-                  <div className="hidden md:block bg-white shadow-lg rounded-2xl overflow-hidden"><table className="min-w-full divide-y divide-slate-100"><thead className="bg-slate-50"><tr><th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-12">选择</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">药物信息</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">试验设计</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">剂量 / 效果 / 安全性</th>{isAdmin && <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>}</tr></thead><tbody className="bg-white divide-y divide-slate-100">{sortedAndFilteredStudies.map((study)=><tr key={study.id} className="hover:bg-slate-50/50 transition-colors"><td className="px-4 py-4"><input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" checked={selectedStudyIds.includes(study.id)} onChange={()=>handleSelectStudy(study.id)}/></td><td className="px-6 py-4"><div className="flex flex-col"><span className="text-sm font-bold text-slate-900">{study.drugName}</span><span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full w-fit mt-1">{study.drugClass}</span><span className="text-xs text-slate-400 mt-0.5">{study.company}</span></div></td><td className="px-6 py-4"><div className="flex flex-col text-sm text-slate-600"><span className="font-medium text-primary">{study.trialName}</span><span className="mt-1">{study.phase} | {study.durationWeeks} 周</span><div className="flex gap-2 mt-1"><span className="text-xs font-medium px-2 py-0.5 rounded-full text-gray-700 bg-gray-100">{study.formulation}</span><span className="text-xs font-medium px-2 py-0.5 rounded-full text-gray-700 bg-gray-100">{study.frequency}</span></div><div className="flex gap-2 mt-1"><span className={`text-xs font-medium ${study.hasT2D ? 'text-orange' : 'text-primary'}`}>{study.hasT2D ?'T2D 患者':'非糖尿病'}</span>{study.isChineseCohort && <span className="text-xs font-medium text-red-600">中国人</span>}</div></div></td><td className="px-6 py-4"><div className="space-y-2">{study.doses.map((dose,idx)=><div key={idx} className="flex items-center text-xs space-x-3"><span className="w-12 font-medium text-slate-700 bg-slate-100 px-1 rounded">{dose.dose}</span><div className="flex items-center space-x-1 w-20"><span className="text-emerald-600 font-bold">↓ {dose.weightLossPercent}%</span></div><div className="flex items-center space-x-2 text-slate-400"><span title="恶心">🤢 {dose.nauseaPercent}%</span><span title="呕吐">🤮 {dose.vomitingPercent}%</span></div></div>)}</div></td>{isAdmin && <td className="px-6 py-4 text-right text-sm font-medium"><div className="flex justify-end items-center gap-4"><button onClick={() => handleOpenEditModal(study)} className="font-medium text-primary hover:text-primary/80 transition-colors">编辑</button><button onClick={() => handleInitiateDelete(study)} className="font-medium text-red-500 hover:text-red-700 transition-colors">删除</button></div></td>}</tr>)}</tbody></table></div>
+                  <div className="hidden md:block bg-white shadow-lg rounded-2xl overflow-hidden"><table className="min-w-full divide-y divide-slate-100"><thead className="bg-slate-50"><tr><th scope="col" className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider w-12">选择</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">药物信息</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">试验设计</th><th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">剂量 / 效果 / 安全性</th>{isAdmin && <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">操作</th>}</tr></thead><tbody className="bg-white divide-y divide-slate-100">{sortedAndFilteredStudies.map((study)=>{
+                    const cat = getStudyDrugCategory(study);
+                    const catInfo = DRUG_CATEGORIES.find(c => c.key === cat);
+                    return (
+                      <tr key={study.id} className="hover:bg-slate-50/50 transition-colors"><td className="px-4 py-4"><input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" checked={selectedStudyIds.includes(study.id)} onChange={()=>handleSelectStudy(study.id)}/></td><td className="px-6 py-4"><div className="flex flex-col"><div className="flex items-center gap-1.5"><span className="text-sm font-bold text-slate-900">{study.drugName}</span>{catInfo && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shadow-xs" style={{ backgroundColor: catInfo.color }}>{catInfo.label}</span>}</div><span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full w-fit mt-1">{study.drugClass}</span><span className="text-xs text-slate-400 mt-0.5">{study.company}</span></div></td><td className="px-6 py-4"><div className="flex flex-col text-sm text-slate-600"><span className="font-medium text-primary">{study.trialName}</span><span className="mt-1">{study.phase} | {study.durationWeeks} 周</span><div className="flex gap-2 mt-1"><span className="text-xs font-medium px-2 py-0.5 rounded-full text-gray-700 bg-gray-100">{study.formulation}</span><span className="text-xs font-medium px-2 py-0.5 rounded-full text-gray-700 bg-gray-100">{study.frequency}</span></div><div className="flex gap-2 mt-1"><span className={`text-xs font-medium ${study.hasT2D ? 'text-orange' : 'text-primary'}`}>{study.hasT2D ?'T2D 患者':'非糖尿病'}</span>{study.isChineseCohort && <span className="text-xs font-medium text-red-600">中国人</span>}</div></div></td><td className="px-6 py-4"><div className="space-y-2">{study.doses.map((dose,idx)=><div key={idx} className="flex items-center text-xs space-x-3"><span className="w-12 font-medium text-slate-700 bg-slate-100 px-1 rounded">{dose.dose}</span><div className="flex items-center space-x-1 w-20"><span className="text-emerald-600 font-bold">↓ {dose.weightLossPercent}%</span></div><div className="flex items-center space-x-2 text-slate-400"><span title="恶心">🤢 {dose.nauseaPercent}%</span><span title="呕吐">🤮 {dose.vomitingPercent}%</span></div></div>)}</div></td>{isAdmin && <td className="px-6 py-4 text-right text-sm font-medium"><div className="flex justify-end items-center gap-4"><button onClick={() => handleOpenEditModal(study)} className="font-medium text-primary hover:text-primary/80 transition-colors">编辑</button><button onClick={() => handleInitiateDelete(study)} className="font-medium text-red-500 hover:text-red-700 transition-colors">删除</button></div></td>}</tr>
+                    );
+                  })}</tbody></table></div>
               </div>
             )}
           </>
