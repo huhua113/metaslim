@@ -133,8 +133,10 @@ const SortIcon: React.FC<{ direction: 'asc' | 'desc' }> = ({ direction }) => (
 const DrugCategoryTabBar: React.FC<{
   activeCategory: DrugCategory;
   onSelect: (cat: DrugCategory) => void;
+  hoveredCategory?: DrugCategory | null;
+  onHoverCategory?: (cat: DrugCategory | null) => void;
   studies: Study[];
-}> = ({ activeCategory, onSelect, studies }) => {
+}> = ({ activeCategory, onSelect, hoveredCategory, onHoverCategory, studies }) => {
   const counts = useMemo(() => {
     const map: Record<DrugCategory, number> = {
       all: studies.length,
@@ -154,39 +156,68 @@ const DrugCategoryTabBar: React.FC<{
   }, [studies]);
 
   return (
-    <div className="bg-white p-3 rounded-2xl shadow-lg border border-slate-100">
-      <div className="flex items-center justify-between mb-2.5 px-1">
+    <div 
+      className="bg-white p-3 rounded-2xl shadow-lg border border-slate-100"
+      onMouseLeave={() => onHoverCategory?.(null)}
+    >
+      <div className="flex items-center justify-between mb-2.5 px-1 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-primary"></span>
           <span className="text-xs font-bold text-slate-900">药物类型选项卡</span>
           <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full font-medium">按靶点机制筛选</span>
+          <span className="text-[10px] text-primary/80 bg-primary/10 px-2 py-0.5 rounded-full font-bold hidden sm:inline-block">
+            💡 悬停即可临时在图表中高亮预览
+          </span>
         </div>
-        <span className="text-[11px] text-slate-400 font-medium">已匹配 {counts[activeCategory] || 0} 项队列</span>
+        <span className="text-[11px] text-slate-400 font-medium">
+          {hoveredCategory && hoveredCategory !== 'all' ? (
+            <span className="text-primary font-bold">
+              正在预览: {DRUG_CATEGORIES.find(c => c.key === hoveredCategory)?.label} ({counts[hoveredCategory] || 0} 项队列)
+            </span>
+          ) : (
+            `已匹配 ${counts[activeCategory] || 0} 项队列`
+          )}
+        </span>
       </div>
-      <div className="flex overflow-x-auto no-scrollbar gap-2 pb-1 pt-0.5">
+      <div 
+        className="flex overflow-x-auto no-scrollbar gap-2 pb-1 pt-0.5"
+        onMouseLeave={() => onHoverCategory?.(null)}
+      >
         {DRUG_CATEGORIES.map(cat => {
           const isActive = activeCategory === cat.key;
+          const isHovered = hoveredCategory === cat.key && !isActive;
           const count = counts[cat.key] || 0;
           return (
             <button
               key={cat.key}
-              onClick={() => onSelect(cat.key)}
-              title={cat.description}
-              className={`flex-shrink-0 flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
+              onClick={() => {
+                onSelect(cat.key);
+                onHoverCategory?.(null);
+              }}
+              onMouseEnter={() => onHoverCategory?.(cat.key)}
+              onMouseLeave={() => onHoverCategory?.(null)}
+              title={`${cat.description} (鼠标悬停在图表中临时高亮)`}
+              className={`flex-shrink-0 flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                 isActive 
                   ? 'bg-primary text-white shadow-md shadow-primary/25 scale-[1.02]' 
-                  : 'bg-slate-50/90 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
+                  : isHovered
+                    ? 'bg-primary/10 text-primary border-primary ring-2 ring-primary/30 scale-[1.02] shadow-xs'
+                    : 'bg-slate-50/90 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
               }`}
             >
               {cat.key !== 'all' && (
                 <span 
-                  className="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-xs" 
+                  className={`w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-xs ${isHovered ? 'animate-pulse' : ''}`} 
                   style={{ backgroundColor: isActive ? '#ffffff' : cat.color }}
                 />
               )}
               <span>{cat.label}</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
-                isActive ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'
+                isActive 
+                  ? 'bg-white/20 text-white' 
+                  : isHovered 
+                    ? 'bg-primary text-white' 
+                    : 'bg-slate-200/80 text-slate-600'
               }`}>
                 {count}
               </span>
@@ -226,6 +257,7 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'data' | 'comparison'>('dashboard');
   const [selectedStudyIds, setSelectedStudyIds] = useState<string[]>([]);
   const [activeDrugCategory, setActiveDrugCategory] = useState<DrugCategory>('all');
+  const [hoveredDrugCategory, setHoveredDrugCategory] = useState<DrugCategory | null>(null);
   const [activeDashboardFilters, setActiveDashboardFilters] = useState<DashboardFilter[]>(['all']);
   
   const [studyToEdit, setStudyToEdit] = useState<Study | null>(null);
@@ -533,7 +565,13 @@ const App: React.FC = () => {
                   <StatCard title="涉及药物种类" value={new Set(studies.map(s => s.drugClass)).size} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v4.517a1 1 0 01-1.447.894L10 8v4.517A1 1 0 018.553 13.41l-1-1V4z" /></svg>} styleIndex={1} />
                 </div>
                 
-                <DrugCategoryTabBar activeCategory={activeDrugCategory} onSelect={setActiveDrugCategory} studies={studies} />
+                <DrugCategoryTabBar 
+                  activeCategory={activeDrugCategory} 
+                  onSelect={setActiveDrugCategory} 
+                  hoveredCategory={hoveredDrugCategory}
+                  onHoverCategory={setHoveredDrugCategory}
+                  studies={studies} 
+                />
                 <FilterBar activeFilters={activeDashboardFilters} onClick={handleDashboardFilterClick} />
 
                 <div className="flex p-1 bg-slate-100 rounded-xl w-fit">
@@ -554,13 +592,19 @@ const App: React.FC = () => {
                 {dashboardSubTab === 'efficacy' ? (
                   <div className="bg-white rounded-3xl shadow-xl p-6 pb-5 sm:p-8 sm:pb-6 animate-fade-in mb-10">
                     <div className="h-[520px] sm:h-[600px] md:h-[650px]">
-                      <DurationEfficacyScatterChart studies={filteredStudies} />
+                      <DurationEfficacyScatterChart 
+                        studies={filteredStudies} 
+                        hoveredCategory={hoveredDrugCategory} 
+                      />
                     </div>
                   </div>
                 ) : (
                   <div className="bg-white rounded-3xl shadow-xl p-6 pb-5 sm:p-8 sm:pb-6 animate-fade-in mb-10">
                     <div className="h-[520px] sm:h-[600px] md:h-[650px]">
-                      <SafetyAnalysisChart studies={filteredStudies} />
+                      <SafetyAnalysisChart 
+                        studies={filteredStudies} 
+                        hoveredCategory={hoveredDrugCategory} 
+                      />
                     </div>
                   </div>
                 )}
@@ -568,7 +612,13 @@ const App: React.FC = () => {
             )}
             {activeTab === 'data' && (
               <div className="animate-fade-in space-y-4">
-                <DrugCategoryTabBar activeCategory={activeDrugCategory} onSelect={setActiveDrugCategory} studies={studies} />
+                <DrugCategoryTabBar 
+                  activeCategory={activeDrugCategory} 
+                  onSelect={setActiveDrugCategory} 
+                  hoveredCategory={hoveredDrugCategory}
+                  onHoverCategory={setHoveredDrugCategory}
+                  studies={studies} 
+                />
                 <FilterBar activeFilters={activeDashboardFilters} onClick={handleDashboardFilterClick} />
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="w-full md:w-auto relative">

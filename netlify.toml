@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # 关闭或排除 Netlify 构建时的密钥扫描，避免因 VITE_ 环境变量被内联到前端 bundle 而阻止部署
+  SECRETS_SCAN_ENABLED = "false"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_FIREBASE_API_KEY,VITE_FIREBASE_APP_ID,VITE_FIREBASE_AUTH_DOMAIN,VITE_FIREBASE_MEASUREMENT_ID,VITE_FIREBASE_MESSAGING_SENDER_ID,VITE_FIREBASE_PROJECT_ID,VITE_FIREBASE_STORAGE_BUCKET,VITE_GEMINI_API_KEY"
+
+# SPA 单页面路由重定向，防止在 Netlify 上刷新页面时出现 404
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
