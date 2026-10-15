@@ -12,6 +12,7 @@ import ManualAddModal from './components/ManualAddModal';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import { SafetyAnalysisChart, DurationEfficacyScatterChart } from './components/Visualizations';
 import ComparisonView from './components/ComparisonView';
+import { exportStudiesToExcel, downloadExcelTemplate } from './services/excelService';
 
 const statCardStyles = [
   { bg: 'bg-orange/20', text: 'text-orange' },
@@ -530,8 +531,8 @@ const App: React.FC = () => {
                     手动录入
                   </button>
                   <button onClick={() => setIsModalOpen(true)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all shadow-md shadow-primary/30">
-                    <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="p 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    上传文献
+                    <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    上传文献 / Excel
                   </button>
                 </>
               )}
@@ -620,35 +621,72 @@ const App: React.FC = () => {
                   studies={studies} 
                 />
                 <FilterBar activeFilters={activeDashboardFilters} onClick={handleDashboardFilterClick} />
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="w-full md:w-auto relative">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                        </span>
-                        <input
-                            type="text"
-                            placeholder="搜索药物、公司或试验..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full md:w-64 pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-primary focus:border-primary transition"
-                        />
+                <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+                        <div className="relative flex-1 sm:max-w-xs">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                            </span>
+                            <input
+                                type="text"
+                                placeholder="搜索药物、公司或试验..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-primary focus:border-primary transition"
+                            />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-medium text-slate-500 whitespace-nowrap">排序:</span>
+                            <button
+                              onClick={() => handleSort('createdAt')}
+                              className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 ${sortConfig.key === 'createdAt' ? 'bg-primary/10 text-primary font-bold' : 'text-slate-600 hover:bg-slate-100'}`}
+                            >
+                              上传时间
+                              {sortConfig.key === 'createdAt' && <SortIcon direction={sortConfig.direction} />}
+                            </button>
+                            <button
+                              onClick={() => handleSort('drugName')}
+                              className={`px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 ${sortConfig.key === 'drugName' ? 'bg-primary/10 text-primary font-bold' : 'text-slate-600 hover:bg-slate-100'}`}
+                            >
+                              药物名称
+                              {sortConfig.key === 'drugName' && <SortIcon direction={sortConfig.direction} />}
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-slate-500">排序:</span>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
                         <button
-                          onClick={() => handleSort('createdAt')}
-                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center ${sortConfig.key === 'createdAt' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
+                          onClick={() => exportStudiesToExcel(sortedAndFilteredStudies)}
+                          title="导出当前筛选的研究列表为 Excel 文件 (.xlsx)"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer shadow-2xs"
                         >
-                          上传时间
-                          {sortConfig.key === 'createdAt' && <SortIcon direction={sortConfig.direction} />}
+                          <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span>导出 Excel ({sortedAndFilteredStudies.length})</span>
                         </button>
                         <button
-                          onClick={() => handleSort('drugName')}
-                          className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center ${sortConfig.key === 'drugName' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100'}`}
+                          onClick={downloadExcelTemplate}
+                          title="下载标准录入模板，可直接在 Excel 中填写并上传更新"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
                         >
-                          药物名称
-                          {sortConfig.key === 'drugName' && <SortIcon direction={sortConfig.direction} />}
+                          <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          <span>下载模板</span>
                         </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => setIsModalOpen(true)}
+                            title="上传 Excel 或文献文件"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg bg-primary text-white hover:opacity-90 transition-all shadow-xs cursor-pointer"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            <span>导入 Excel</span>
+                          </button>
+                        )}
                     </div>
                 </div>
                  <div className="md:hidden space-y-4">{sortedAndFilteredStudies.map((study) => <StudyCard key={study.id} study={study} isSelected={selectedStudyIds.includes(study.id)} onSelect={handleSelectStudy} onEdit={handleOpenEditModal} onDelete={handleInitiateDelete} isAdmin={isAdmin} />)}</div>

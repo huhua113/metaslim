@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { extractTextFromPDF, analyzeMedicalText, analyzeMedicalImage } from '../services/geminiService';
+import { parseExcelFile, downloadExcelTemplate } from '../services/excelService';
 import { addStudy, updateStudy } from '../services/firebaseService';
 import { Study } from '../types';
 
@@ -14,6 +15,16 @@ interface UploadProgress {
   status: 'idle' | 'processing' | 'success' | 'error';
   message: string;
 }
+
+// 辅助判断是否为 Excel 文件
+const isExcelFile = (file: File): boolean => {
+  return (
+    /\.(xlsx|xls|csv)$/i.test(file.name) ||
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.type === 'application/vnd.ms-excel' ||
+    file.type === 'text/csv'
+  );
+};
 
 const ProgressIcon: React.FC<{ status: UploadProgress['status'] }> = ({ status }) => {
   switch (status) {
@@ -73,8 +84,14 @@ const ExtractionModal: React.FC<Props> = ({ isOpen, onClose, studies }) => {
       const isValid = studyData && studyData.drugName && studyData.trialName && Array.isArray(studyData.doses) && studyData.doses.length > 0;
       if (!isValid) continue;
 
-      const phaseStr = studyData.phase || '';
-      if (!phaseStr.includes('1') && !phaseStr.includes('2') && !phaseStr.includes('3')) {
+      const phaseStr = (studyData.phase || '').toLowerCase();
+      // 支持 Phase 1, Phase 2, Phase 3, 1期, 2期, 3期, I, II, III, 或为空时保持宽容
+      const isClinicalPhase = 
+        phaseStr.includes('1') || phaseStr.includes('2') || phaseStr.includes('3') ||
+        phaseStr.includes('i') || phaseStr.includes('一') || phaseStr.includes('二') || phaseStr.includes('三') ||
+        phaseStr === '';
+
+      if (!isClinicalPhase) {
         studiesFilteredOutCount++;
         continue;
       }
@@ -131,7 +148,7 @@ const ExtractionModal: React.FC<Props> = ({ isOpen, onClose, studies }) => {
         msg = 'Gemini API 密钥无效或项目未配置。请检查密钥。';
     } else if (msg.includes('permission-denied') || msg.includes('insufficient permissions') || errorString.includes('403')) {
         msg = '数据库权限不足。请检查 Firestore 安全规则。';
-    } else if (!msg.startsWith('AI 未能') && !msg.startsWith('所有提取的')) {
+    } else if (!msg.startsWith('AI 未能') && !msg.startsWith('所有提取的') && !msg.startsWith('未能在 Excel')) {
         msg = `处理失败: ${msg}`;
     }
     
@@ -152,7 +169,12 @@ const ExtractionModal: React.FC<Props> = ({ isOpen, onClose, studies }) => {
 
       try {
         let studiesData: (Omit<Study, 'id' | 'createdAt'>)[];
-        if (file.type === 'application/pdf') {
+        if (isExcelFile(file)) {
+          // 处理 Excel 表格 (.xlsx, .xls, .csv)
+          updateStatus('processing', '正在解析 Excel 表格数据...');
+          studiesData = await parseExcelFile(file);
+          updateStatus('processing', `已读取 ${studiesData.length} 个队列，正在同步至数据库...`);
+        } else if (file.type === 'application/pdf') {
           updateStatus('processing', '正在解析 PDF...');
           const text = await extractTextFromPDF(file);
           updateStatus('processing', 'AI 正在提取数据...');
@@ -161,7 +183,7 @@ const ExtractionModal: React.FC<Props> = ({ isOpen, onClose, studies }) => {
           updateStatus('processing', 'AI 正在分析图片...');
           studiesData = await analyzeMedicalImage(file);
         } else {
-          throw new Error("不支持的文件格式");
+          throw new Error("不支持的文件格式，请上传 Excel 表格 (.xlsx, .xls, .csv)、PDF 或图片。");
         }
         await processExtractedData(studiesData, updateStatus);
       } catch (error: unknown) {
@@ -212,7 +234,6 @@ const ExtractionModal: React.FC<Props> = ({ isOpen, onClose, studies }) => {
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      // FIX: Use spread syntax to convert FileList to File[] for better type safety.
       handleFilesSelected([...e.target.files]);
     }
   };
@@ -224,15 +245,15 @@ const ExtractionModal: React.FC<Props> = ({ isOpen, onClose, studies }) => {
     setIsDragging(false);
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      // FIX: Use spread syntax to convert FileList to File[].
-      // This resolves a TypeScript error where the result of filter was being inferred as unknown[].
       const acceptedFiles = [...files].filter((f: File) => 
-        f.type === 'application/pdf' || f.type.startsWith('image/')
+        f.type === 'application/pdf' || 
+        f.type.startsWith('image/') ||
+        isExcelFile(f)
       );
       if (acceptedFiles.length > 0) {
           handleFilesSelected(acceptedFiles);
       } else {
-        alert("请拖拽 PDF 或图片文件。");
+        alert("请拖拽 Excel (.xlsx, .xls, .csv)、PDF 或图片文件。");
       }
     }
   };
@@ -240,27 +261,70 @@ const ExtractionModal: React.FC<Props> = ({ isOpen, onClose, studies }) => {
   const allDone = uploadProgress.length > 0 && !isBatchProcessing;
 
   const renderFileInput = () => (
-    <div 
-      onClick={() => fileInputRef.current?.click()}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${isDragging && !isMobile ? 'border-primary bg-primary/10' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-primary mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-      </svg>
-      {isMobile ? (
-         <div>
-            <span className="text-primary font-medium">点击选择文件</span>
-            <p className="text-xs text-slate-500 mt-2 px-4">
-                提示：请先将微信等应用中的文件保存到手机，再从这里选择。
-            </p>
+    <div className="space-y-3">
+      <div 
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${isDragging && !isMobile ? 'border-primary bg-primary/10' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
+      >
+        <div className="flex justify-center items-center gap-3 mb-2.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-600 shadow-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-xs">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
         </div>
-      ) : (
-        <span className="text-primary font-medium">点击或拖拽多个 PDF 或图片文件</span>
-      )}
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden" multiple />
+        {isMobile ? (
+           <div>
+              <span className="text-primary font-bold text-sm">点击选择 Excel 表格 / PDF / 图片</span>
+              <p className="text-xs text-slate-500 mt-1 px-4 leading-relaxed">
+                  提示：支持直接选择手机内下载的 Excel 表格或文献文件进行解析。
+              </p>
+          </div>
+        ) : (
+          <div>
+            <span className="text-primary font-bold text-sm">点击或拖拽上传 Excel 表格、PDF 文献或图片</span>
+            <p className="text-xs text-slate-400 mt-1">
+              支持 .xlsx、.xls、.csv 格式表格，系统将自动读取表格并与现有数据库比对更新
+            </p>
+          </div>
+        )}
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" 
+          className="hidden" 
+          multiple 
+        />
+      </div>
+
+      <div className="flex items-center justify-between bg-emerald-50/80 border border-emerald-200/80 rounded-xl px-3.5 py-2.5">
+        <div className="flex items-center gap-2 text-xs text-emerald-900 font-medium">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>需要标准格式表格？</span>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            downloadExcelTemplate();
+          }}
+          className="inline-flex items-center gap-1.5 text-xs text-emerald-700 hover:text-emerald-900 font-bold bg-white hover:bg-emerald-100/50 px-3 py-1.5 rounded-lg border border-emerald-300 transition-all shadow-2xs cursor-pointer active:scale-95"
+        >
+          <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          下载 Excel 模板 (.xlsx)
+        </button>
+      </div>
     </div>
   );
 
