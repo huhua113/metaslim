@@ -3,7 +3,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   ScatterChart, Scatter
 } from 'recharts';
-import { Study, getStudyDrugCategory, DrugCategory, DRUG_CATEGORIES } from '../types';
+import { Study, getStudyDrugCategory, DrugCategory, DRUG_CATEGORIES, normalizeDrugName, isSameDrug } from '../types';
 
 interface Props {
   studies: Study[];
@@ -63,49 +63,114 @@ export interface CompanyTheme {
   colorFamilyName: string; // 红色系, 蓝色系, 绿色系, 黄色系, 咖色系, 紫色系, 橙色系, 青色系
   primaryHex: string;
   baseHue: number;
+  isChinese: boolean; // 是否为中国本土创新药企
 }
+
+/**
+ * 智能识别是否为中国本土创新药企 / 原研机构
+ * 涵盖：恒瑞、信达生物、联邦制药/联邦生物科技 (UBT251/UTB251)、豪森、石药、华东医药、先为达、诚益、银诺、众生、派格等
+ */
+export const isChineseCompany = (companyStr: string = '', drugNameStr: string = ''): boolean => {
+  const c = (companyStr || '').toUpperCase().trim();
+  const d = (drugNameStr || '').toLowerCase().trim();
+
+  // 1. 恒瑞医药 / Hengrui
+  if (c.includes('HENGRUI') || c.includes('恒瑞')) return true;
+
+  // 2. 信达生物 / Innovent
+  if (c.includes('INNOVENT') || c.includes('信达')) return true;
+
+  // 3. 联邦制药 / 联邦生物科技 / United Laboratories / UBT / UTB
+  if (
+    c.includes('UNITED') || 
+    c.includes('联邦') || 
+    c.includes('TUL') || 
+    c.includes('UBT') || 
+    c.includes('UTB')
+  ) {
+    return true;
+  }
+
+  // 4. 国内其他知名生物医药企业
+  if (
+    c.includes('中国') || c.includes('CHINA') || c.includes('CHINESE') ||
+    c.includes('豪森') || c.includes('HANSOH') ||
+    c.includes('石药') || c.includes('CSPC') ||
+    c.includes('华东') || c.includes('HUADONG') ||
+    c.includes('先为达') || c.includes('SCIWIND') ||
+    c.includes('诚益') || c.includes('ECCOGENE') ||
+    c.includes('银诺') || c.includes('YINNUO') ||
+    c.includes('众生') || c.includes('ZRP') ||
+    c.includes('派格') || c.includes('PEGBIO') ||
+    c.includes('君圣泰') || c.includes('HIGHTIDE') ||
+    c.includes('甘李') || c.includes('GANLEE') ||
+    c.includes('信立泰') || c.includes('SALUBRIS') ||
+    c.includes('博瑞') || c.includes('BIONOVUS') ||
+    c.includes('东阳光') || c.includes('HEC') ||
+    c.includes('凯因') || c.includes('歌礼') || c.includes('ASCLETIS')
+  ) {
+    return true;
+  }
+
+  // 5. 常见中国原研药物代号或名称匹配（如 HRS9531、HRS-7535、UBT251、UTB251、Mazdutide 玛仕度肽等）
+  if (
+    d.includes('hrs') || 
+    d.includes('ubt') || 
+    d.includes('utb') || 
+    d.includes('mazdutide') || 
+    d.includes('玛仕度肽')
+  ) {
+    return true;
+  }
+
+  return false;
+};
 
 export const getCompanyTheme = (companyStr: string): CompanyTheme => {
   const c = (companyStr || '').toUpperCase().trim();
   // 1. 礼来 - 红色系
   if (c.includes('LILLY') || c.includes('礼来')) {
-    return { name: 'Eli Lilly', colorFamilyName: '红色系', baseHue: 352, primaryHex: '#dc2626' };
+    return { name: 'Eli Lilly', colorFamilyName: '红色系', baseHue: 352, primaryHex: '#dc2626', isChinese: false };
   }
   // 2. 诺和诺德 - 蓝色系
   if (c.includes('NOVO') || c.includes('诺和诺德') || c.includes('诺和')) {
-    return { name: 'Novo Nordisk', colorFamilyName: '蓝色系', baseHue: 220, primaryHex: '#2563eb' };
+    return { name: 'Novo Nordisk', colorFamilyName: '蓝色系', baseHue: 220, primaryHex: '#2563eb', isChinese: false };
   }
   // 3. 辉瑞 - 绿色系 (包括 Ecnoglutide 依诺格鲁肽)
   if (c.includes('PFIZER') || c.includes('辉瑞')) {
-    return { name: 'Pfizer', colorFamilyName: '绿色系', baseHue: 158, primaryHex: '#059669' };
+    return { name: 'Pfizer', colorFamilyName: '绿色系', baseHue: 158, primaryHex: '#059669', isChinese: false };
   }
   // 4. 罗氏 - 黄色系 (CT-388, CT-996)
   if (c.includes('ROCHE') || c.includes('罗氏') || c.includes('CARMOT')) {
-    return { name: 'Roche', colorFamilyName: '黄色系', baseHue: 44, primaryHex: '#d97706' };
+    return { name: 'Roche', colorFamilyName: '黄色系', baseHue: 44, primaryHex: '#d97706', isChinese: false };
   }
-  // 5. 恒瑞 - 咖色系 (HRS9531, HRS-7535)
+  // 5. 恒瑞 - 咖色系 (HRS9531, HRS-7535) - 中国药企
   if (c.includes('HENGRUI') || c.includes('恒瑞')) {
-    return { name: 'Hengrui', colorFamilyName: '咖色系', baseHue: 28, primaryHex: '#78350f' };
+    return { name: 'Hengrui', colorFamilyName: '咖色系', baseHue: 28, primaryHex: '#78350f', isChinese: true };
   }
-  // 6. 信达生物 - 紫色系 (Mazdutide)
+  // 6. 信达生物 - 紫色系 (Mazdutide) - 中国药企
   if (c.includes('INNOVENT') || c.includes('信达')) {
-    return { name: 'Innovent', colorFamilyName: '紫色系', baseHue: 270, primaryHex: '#7c3aed' };
+    return { name: 'Innovent', colorFamilyName: '紫色系', baseHue: 270, primaryHex: '#7c3aed', isChinese: true };
   }
   // 7. 勃林格殷格翰 - 橙色系 (Survodutide)
   if (c.includes('BOEHRINGER') || c.includes('BI') || c.includes('勃林格')) {
-    return { name: 'Boehringer Ingelheim', colorFamilyName: '橙色系', baseHue: 18, primaryHex: '#ea580c' };
+    return { name: 'Boehringer Ingelheim', colorFamilyName: '橙色系', baseHue: 18, primaryHex: '#ea580c', isChinese: false };
   }
   // 8. 安进 - 青色系 (MariTide / AMG 133)
   if (c.includes('AMGEN') || c.includes('安进')) {
-    return { name: 'Amgen', colorFamilyName: '青色系', baseHue: 190, primaryHex: '#0891b2' };
+    return { name: 'Amgen', colorFamilyName: '青色系', baseHue: 190, primaryHex: '#0891b2', isChinese: false };
   }
   // 9. 阿斯利康 - 洋红系
   if (c.includes('ASTRAZENECA') || c.includes('AZ') || c.includes('阿斯利康')) {
-    return { name: 'AstraZeneca', colorFamilyName: '洋红系', baseHue: 300, primaryHex: '#c026d3' };
+    return { name: 'AstraZeneca', colorFamilyName: '洋红系', baseHue: 300, primaryHex: '#c026d3', isChinese: false };
   }
   // 10. 赛诺菲 - 湖蓝系
   if (c.includes('SANOFI') || c.includes('赛诺菲')) {
-    return { name: 'Sanofi', colorFamilyName: '湖蓝系', baseHue: 202, primaryHex: '#0284c7' };
+    return { name: 'Sanofi', colorFamilyName: '湖蓝系', baseHue: 202, primaryHex: '#0284c7', isChinese: false };
+  }
+  // 11. 联邦制药 / 联邦生物科技 (UBT251 / UTB251) - 靛蓝系 - 中国药企
+  if (c.includes('UNITED') || c.includes('联邦') || c.includes('TUL') || c.includes('UBT') || c.includes('UTB')) {
+    return { name: 'United Laboratories', colorFamilyName: '靛蓝系', baseHue: 245, primaryHex: '#4f46e5', isChinese: true };
   }
 
   // 默认其他未知公司：由名称哈希计算稳定基色
@@ -115,7 +180,8 @@ export const getCompanyTheme = (companyStr: string): CompanyTheme => {
     name: companyStr || '其他药企', 
     colorFamilyName: '专属色系', 
     baseHue: fallbackHue, 
-    primaryHex: `hsl(${fallbackHue}, 70%, 45%)` 
+    primaryHex: `hsl(${fallbackHue}, 70%, 45%)`,
+    isChinese: isChineseCompany(companyStr)
   };
 };
 
@@ -125,12 +191,19 @@ export const getCompanyTheme = (companyStr: string): CompanyTheme => {
  * 同一药企内部不同药物或剂量通过饱和度和明度的微调保证层次清晰。
  */
 export const generatePointColor = (study: Study, doseStr: string = '') => {
-  const drugName = (study.drugName || '').toLowerCase();
-  // 特殊规则：Ecnoglutide 属于辉瑞 Pfizer (绿色系)
-  const company = drugName.includes('ecnoglutide') ? 'Pfizer' : (study.company || '');
+  const normName = normalizeDrugName(study.drugName || '').toLowerCase();
+  // 特殊规则：Ecnoglutide 属于辉瑞 Pfizer (绿色系)；CagriSema 属于诺和诺德 Novo Nordisk (蓝色系)；UBT251/UTB251 属于联邦制药 (靛蓝系)
+  let company = study.company || '';
+  if (normName.includes('ecnoglutide')) {
+    company = 'Pfizer';
+  } else if (normName.includes('cagri')) {
+    company = 'Novo Nordisk';
+  } else if (normName.includes('ubt') || normName.includes('utb')) {
+    company = 'United Laboratories';
+  }
   const theme = getCompanyTheme(company);
   
-  const drugHash = Math.abs(stringToHash(study.drugName || ''));
+  const drugHash = Math.abs(stringToHash(normName || ''));
   const doseHash = Math.abs(stringToHash(doseStr || ''));
   
   let hue = theme.baseHue;
@@ -185,8 +258,15 @@ export const generatePointColor = (study: Study, doseStr: string = '') => {
 const getSafetyData = (studies: Study[]) => {
   return studies.flatMap(study => {
     const category = getStudyDrugCategory(study);
-    const drugName = (study.drugName || '').toLowerCase();
-    const company = drugName.includes('ecnoglutide') ? 'Pfizer' : (study.company || '未知药企');
+    const normDrugName = normalizeDrugName(study.drugName || '') || '未命名药物';
+    let company = study.company || '未知药企';
+    if (normDrugName.toLowerCase().includes('ecnoglutide')) {
+      company = 'Pfizer';
+    } else if (normDrugName.toLowerCase().includes('cagri')) {
+      company = 'Novo Nordisk';
+    } else if (normDrugName.toLowerCase().includes('ubt') || normDrugName.toLowerCase().includes('utb')) {
+      company = 'United Laboratories';
+    }
     const theme = getCompanyTheme(company);
 
     const doses = (study.doses && study.doses.length > 0)
@@ -205,7 +285,8 @@ const getSafetyData = (studies: Study[]) => {
       .map(dose => {
         const weightLoss = cleanNumber(dose.weightLossPercent ?? (study as any).weightLossPercent ?? (study as any).weightLoss);
         return {
-          name: study.drugName || '未命名药物',
+          name: normDrugName,
+          originalDrugName: study.drugName || '未命名药物',
           drugClass: study.drugClass || 'GLP-1',
           category,
           company: theme.name,
@@ -221,6 +302,7 @@ const getSafetyData = (studies: Study[]) => {
           constipation: cleanNumber(dose.constipationPercent),
           sae: cleanNumber(dose.saePercent),
           hasT2D: Boolean(study.hasT2D),
+          isChinese: Boolean(theme.isChinese || isChineseCompany(company, normDrugName)),
           fill: generatePointColor(study, dose.dose)
         };
       })
@@ -233,8 +315,15 @@ const getDurationEfficacyData = (studies: Study[]) => {
   return studies.flatMap(study => {
     const duration = getStudyDuration(study);
     const category = getStudyDrugCategory(study);
-    const drugName = (study.drugName || '').toLowerCase();
-    const company = drugName.includes('ecnoglutide') ? 'Pfizer' : (study.company || '未知药企');
+    const normDrugName = normalizeDrugName(study.drugName || '') || '未命名药物';
+    let company = study.company || '未知药企';
+    if (normDrugName.toLowerCase().includes('ecnoglutide')) {
+      company = 'Pfizer';
+    } else if (normDrugName.toLowerCase().includes('cagri')) {
+      company = 'Novo Nordisk';
+    } else if (normDrugName.toLowerCase().includes('ubt') || normDrugName.toLowerCase().includes('utb')) {
+      company = 'United Laboratories';
+    }
     const theme = getCompanyTheme(company);
 
     const doses = (study.doses && study.doses.length > 0)
@@ -258,7 +347,8 @@ const getDurationEfficacyData = (studies: Study[]) => {
           (study as any).weightLoss
         );
         return {
-          name: study.drugName || '未命名药物',
+          name: normDrugName,
+          originalDrugName: study.drugName || '未命名药物',
           drugClass: study.drugClass || 'GLP-1',
           category,
           company: theme.name,
@@ -270,6 +360,7 @@ const getDurationEfficacyData = (studies: Study[]) => {
           x: duration,
           y: weightLoss,
           hasT2D: Boolean(study.hasT2D),
+          isChinese: Boolean(theme.isChinese || isChineseCompany(company, normDrugName)),
           fill: generatePointColor(study, dose.dose)
         };
       })
@@ -332,7 +423,11 @@ const CustomTooltip = ({ active, payload, selectedDrug, selectedCompany, hovered
       }`}>
         <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
           <p className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full inline-block shadow-xs" style={{ backgroundColor: data.fill }}></span>
+            {data.isChinese ? (
+              <span className="w-2.5 h-2.5 rotate-45 inline-block shadow-xs flex-shrink-0" style={{ backgroundColor: data.fill }} title="中国药企专属菱形标"></span>
+            ) : (
+              <span className="w-2.5 h-2.5 rounded-full inline-block shadow-xs flex-shrink-0" style={{ backgroundColor: data.fill }}></span>
+            )}
             {data.name}
           </p>
           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold">
@@ -350,9 +445,14 @@ const CustomTooltip = ({ active, payload, selectedDrug, selectedCompany, hovered
             {data.formulation || '注射'}
           </span>
           <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-slate-200/80 bg-slate-50 text-slate-800">
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: data.companyHex }}></span>
+            <span className={`w-2 h-2 ${data.isChinese ? 'rotate-45' : 'rounded-full'}`} style={{ backgroundColor: data.companyHex }}></span>
             {data.company} ({data.colorFamilyName})
           </span>
+          {data.isChinese && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border border-amber-300 bg-amber-50 text-amber-800 shadow-2xs">
+              🇨🇳 中国药企 ({data.hasT2D ? '✚ 正十字标' : '◆ 菱形宝石标'})
+            </span>
+          )}
           {isCategoryHover && (
             <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full border border-primary/20">
               🔍 类别预览中
@@ -396,7 +496,8 @@ interface InteractiveLegendProps {
     company: string;
     companyHex: string;
     colorFamilyName: string;
-    drugs: Array<{ name: string; color: string; class: string; category: DrugCategory; formulation: string }>;
+    isChinese: boolean;
+    drugs: Array<{ name: string; color: string; class: string; category: DrugCategory; formulation: string; isChinese: boolean }>;
   }>;
   selectedDrug: string | null;
   selectedCompany: string | null;
@@ -424,9 +525,9 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
 
   return (
     <div className="mt-3 border-t border-slate-100 pt-2.5">
-      {/* 交互状态提示条 */}
+      {/* 交互状态提示条 & 标点图例 */}
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+        <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
           <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
             <svg className="w-3.5 h-3.5 text-primary inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
@@ -434,6 +535,28 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
             交互提示:
           </span>
           <span className="text-[11px]">鼠标悬停上方选项卡可临时高亮类别，点击下方标签可持久锁定标点</span>
+          
+          {/* 标点形状快速识别 */}
+          <div className="flex items-center gap-2 text-[11px] bg-slate-100/90 px-2 py-0.5 rounded-lg border border-slate-200/70">
+            <span className="text-slate-500">标点形状:</span>
+            <span className="flex items-center gap-1 text-slate-600">
+              <span className="w-2 h-2 rounded-full bg-slate-400 inline-block"></span>
+              跨国非T2D
+            </span>
+            <span className="flex items-center gap-1 text-slate-600">
+              <span className="font-bold text-slate-500 text-xs leading-none">✕</span>
+              跨国T2D
+            </span>
+            <span className="h-2.5 w-px bg-slate-300"></span>
+            <span className="flex items-center gap-1 text-amber-800 font-bold">
+              <span className="w-2 h-2 rotate-45 bg-amber-600 inline-block shadow-2xs"></span>
+              ◆ 中国非T2D
+            </span>
+            <span className="flex items-center gap-1 text-amber-800 font-bold">
+              <span className="font-black text-amber-600 text-xs leading-none">✚</span>
+              ✚ 中国T2D
+            </span>
+          </div>
         </div>
 
         {/* 类别预览激活状态 */}
@@ -476,20 +599,31 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
               className={`flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 p-1.5 rounded-xl border transition-all ${
                 isGroupSelected 
                   ? 'bg-primary/5 border-primary/40 ring-1 ring-primary/30 shadow-xs' 
-                  : 'bg-slate-50/60 border-slate-100/80 hover:bg-slate-50'
+                  : group.isChinese
+                    ? 'bg-amber-50/30 border-amber-200/60 hover:bg-amber-50/50'
+                    : 'bg-slate-50/60 border-slate-100/80 hover:bg-slate-50'
               }`}
             >
               {/* 药企标题 (支持点击全选该药企标点) */}
               <button
                 type="button"
                 onClick={() => onToggleCompany(group.company)}
-                className="flex items-center gap-2 min-w-[150px] flex-shrink-0 text-left cursor-pointer group/comp hover:opacity-85 transition-opacity"
+                className="flex items-center gap-2 min-w-[160px] flex-shrink-0 text-left cursor-pointer group/comp hover:opacity-85 transition-opacity"
                 title={`点击在图表中突出显示 ${group.company} 的全部数据点`}
               >
-                <span className="w-3 h-3 rounded-full shadow-xs flex-shrink-0" style={{ backgroundColor: group.companyHex }}></span>
+                {group.isChinese ? (
+                  <span className="w-3 h-3 rotate-45 shadow-xs flex-shrink-0" style={{ backgroundColor: group.companyHex }}></span>
+                ) : (
+                  <span className="w-3 h-3 rounded-full shadow-xs flex-shrink-0" style={{ backgroundColor: group.companyHex }}></span>
+                )}
                 <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wider group-hover/comp:text-primary transition-colors">
                   {group.company}
                 </h4>
+                {group.isChinese && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 border border-amber-200/80 shadow-2xs flex items-center gap-0.5">
+                    🇨🇳 国产
+                  </span>
+                )}
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-white text-slate-600 border border-slate-200/80 shadow-2xs">
                   {group.colorFamilyName}
                 </span>
@@ -504,7 +638,7 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
               {/* 药物标签按钮列表 */}
               <div className="flex flex-wrap gap-x-2 gap-y-1.5 items-center">
                 {group.drugs.map(drug => {
-                  const isDrugSelected = selectedDrug === drug.name;
+                  const isDrugSelected = selectedDrug ? isSameDrug(drug.name, selectedDrug) : false;
                   const isCategoryMatch = isCategoryHoverActive && drug.category === hoveredCategory;
                   const isCategoryMismatch = isCategoryHoverActive && drug.category !== hoveredCategory;
                   const isDimmed = !isCategoryHoverActive && ((selectedDrug && !isDrugSelected) || (selectedCompany && selectedCompany !== group.company));
@@ -525,10 +659,17 @@ const InteractiveLegend: React.FC<InteractiveLegendProps> = ({
                       }`}
                       title={`点击在图表中突出显示 ${drug.name}`}
                     >
-                      <div 
-                        className={`w-2.5 h-2.5 rounded-full shadow-xs flex-shrink-0 ${isDrugSelected ? 'ring-2 ring-white' : ''}`} 
-                        style={{ backgroundColor: drug.color }}
-                      ></div>
+                      {drug.isChinese ? (
+                        <div 
+                          className={`w-2.5 h-2.5 rotate-45 shadow-xs flex-shrink-0 ${isDrugSelected ? 'ring-2 ring-white' : ''}`} 
+                          style={{ backgroundColor: drug.color }}
+                        ></div>
+                      ) : (
+                        <div 
+                          className={`w-2.5 h-2.5 rounded-full shadow-xs flex-shrink-0 ${isDrugSelected ? 'ring-2 ring-white' : ''}`} 
+                          style={{ backgroundColor: drug.color }}
+                        ></div>
+                      )}
                       <span className={`text-[11px] font-bold ${isDrugSelected ? 'text-white' : isCategoryMatch ? 'text-primary' : 'text-slate-900'}`}>
                         {drug.name}
                       </span>
@@ -599,7 +740,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
   // 高亮数据点计数
   const highlightedCount = useMemo(() => {
     if (isCategoryHoverActive) return categoryHoverCount;
-    if (selectedDrug) return data.filter(d => d.name === selectedDrug).length;
+    if (selectedDrug) return data.filter(d => isSameDrug(d.name, selectedDrug)).length;
     if (selectedCompany) return data.filter(d => d.company === selectedCompany).length;
     return 0;
   }, [data, isCategoryHoverActive, categoryHoverCount, selectedDrug, selectedCompany]);
@@ -612,6 +753,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
       company: string; 
       companyHex: string;
       colorFamilyName: string;
+      isChinese: boolean;
       category: DrugCategory; 
       formulation: string 
     }>();
@@ -624,6 +766,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
           company: item.company,
           companyHex: item.companyHex,
           colorFamilyName: item.colorFamilyName,
+          isChinese: Boolean(item.isChinese),
           category: item.category,
           formulation: item.formulation
         });
@@ -634,7 +777,8 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
       company: string;
       companyHex: string;
       colorFamilyName: string;
-      drugs: Array<{ name: string; color: string; class: string; category: DrugCategory; formulation: string }>;
+      isChinese: boolean;
+      drugs: Array<{ name: string; color: string; class: string; category: DrugCategory; formulation: string; isChinese: boolean }>;
     }> = {};
 
     items.forEach((info, drugName) => {
@@ -643,6 +787,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
           company: info.company,
           companyHex: info.companyHex,
           colorFamilyName: info.colorFamilyName,
+          isChinese: info.isChinese,
           drugs: []
         };
       }
@@ -653,7 +798,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
   }, [data]);
 
   const handleToggleDrug = (drugName: string) => {
-    if (selectedDrug === drugName) {
+    if (selectedDrug && isSameDrug(selectedDrug, drugName)) {
       setSelectedDrug(null);
     } else {
       setSelectedDrug(drugName);
@@ -681,7 +826,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
     if (cx === undefined || cy === undefined || !payload) return null;
 
     const isCategoryMatch = isCategoryHoverActive ? payload.category === hoveredCategory : false;
-    const isDrugMatch = selectedDrug ? payload.name === selectedDrug : false;
+    const isDrugMatch = selectedDrug ? isSameDrug(payload.name, selectedDrug) : false;
     const isCompanyMatch = selectedCompany ? payload.company === selectedCompany : false;
 
     // 当有选项卡 hover 时，优先高亮该类别；否则根据所选药物/公司高亮
@@ -692,8 +837,53 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
     const hasFilter = isCategoryHoverActive || Boolean(selectedDrug || selectedCompany);
     const isDimmed = hasFilter && !isHighlighted;
     const fill = payload.fill || '#2563eb';
+    const isChinese = Boolean(payload.isChinese || isChineseCompany(payload.company, payload.name));
 
     if (isHighlighted) {
+      if (isChinese) {
+        return (
+          <g 
+            className="cursor-pointer" 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDrug(payload.name);
+            }}
+          >
+            {/* 中国药企专属：呼吸外晕发光菱形 */}
+            <polygon 
+              points={`${cx},${cy - 18} ${cx + 18},${cy} ${cx},${cy + 18} ${cx - 18},${cy}`} 
+              fill={fill} 
+              fillOpacity={0.28} 
+              className="animate-pulse" 
+            />
+            <polygon 
+              points={`${cx},${cy - 11} ${cx + 11},${cy} ${cx},${cy + 11} ${cx - 11},${cy}`} 
+              fill={fill} 
+              stroke="#ffffff" 
+              strokeWidth={3} 
+              style={{ filter: 'drop-shadow(0px 3px 6px rgba(0,0,0,0.4))' }} 
+            />
+            <circle cx={cx} cy={cy} r={3.2} fill="#ffffff" />
+            {/* 浮动标签 */}
+            <g transform={`translate(${cx + 14}, ${cy - 14})`}>
+              <rect 
+                x={0} 
+                y={0} 
+                width={Math.max(82, (payload.name?.length || 0) * 7.5 + (payload.dose?.length || 0) * 5 + 46)} 
+                height={24} 
+                rx={6} 
+                fill="rgba(15, 23, 42, 0.94)" 
+                stroke="#f59e0b" 
+                strokeWidth={1.5} 
+              />
+              <text x={8} y={16} fill="#ffffff" fontSize={10} fontWeight="bold">
+                🇨🇳 {payload.name} {payload.dose} ({payload.weightLoss}%)
+              </text>
+            </g>
+          </g>
+        );
+      }
+
       return (
         <g 
           className="cursor-pointer" 
@@ -735,6 +925,24 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
     }
 
     if (isDimmed) {
+      if (isChinese) {
+        return (
+          <polygon 
+            points={`${cx},${cy - 4.5} ${cx + 4.5},${cy} ${cx},${cy + 4.5} ${cx - 4.5},${cy}`} 
+            fill={fill} 
+            fillOpacity={0.12} 
+            stroke="#94a3b8" 
+            strokeWidth={0.5} 
+            strokeOpacity={0.2} 
+            className="cursor-pointer transition-opacity duration-200"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDrug(payload.name);
+            }}
+          />
+        );
+      }
+
       return (
         <circle 
           cx={cx} 
@@ -751,6 +959,29 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
             handleToggleDrug(payload.name);
           }}
         />
+      );
+    }
+
+    if (isChinese) {
+      return (
+        <g 
+          className="cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleDrug(payload.name);
+          }}
+        >
+          {/* 中国药企专属：宝石晶莹菱形 ◆ */}
+          <polygon 
+            points={`${cx},${cy - 7} ${cx + 7},${cy} ${cx},${cy + 7} ${cx - 7},${cy}`} 
+            fill={fill} 
+            fillOpacity={0.92} 
+            stroke="#ffffff" 
+            strokeWidth={1.6} 
+            style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.25))' }}
+          />
+          <circle cx={cx} cy={cy} r={1.6} fill="#ffffff" pointerEvents="none" />
+        </g>
       );
     }
 
@@ -787,8 +1018,42 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
     const hasFilter = isCategoryHoverActive || Boolean(selectedDrug || selectedCompany);
     const isDimmed = hasFilter && !isHighlighted;
     const fill = payload.fill || '#2563eb';
+    const isChinese = Boolean(payload.isChinese || isChineseCompany(payload.company, payload.name));
 
     if (isHighlighted) {
+      if (isChinese) {
+        return (
+          <g 
+            className="cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDrug(payload.name);
+            }}
+          >
+            {/* 中国药企专属：高亮正十字光晕 ✚ */}
+            <circle cx={cx} cy={cy} r={18} fill={fill} fillOpacity={0.28} className="animate-pulse" />
+            <line x1={cx - 10.5} y1={cy} x2={cx + 10.5} y2={cy} stroke={fill} strokeWidth={5} strokeLinecap="round" style={{ filter: 'drop-shadow(0px 3px 5px rgba(0,0,0,0.35))' }} />
+            <line x1={cx} y1={cy - 10.5} x2={cx} y2={cy + 10.5} stroke={fill} strokeWidth={5} strokeLinecap="round" style={{ filter: 'drop-shadow(0px 3px 5px rgba(0,0,0,0.35))' }} />
+            <circle cx={cx} cy={cy} r={3} fill="#ffffff" />
+            <g transform={`translate(${cx + 14}, ${cy - 14})`}>
+              <rect 
+                x={0} 
+                y={0} 
+                width={Math.max(82, (payload.name?.length || 0) * 7.5 + (payload.dose?.length || 0) * 5 + 46)} 
+                height={24} 
+                rx={6} 
+                fill="rgba(15, 23, 42, 0.94)" 
+                stroke="#f59e0b" 
+                strokeWidth={1.5} 
+              />
+              <text x={8} y={16} fill="#ffffff" fontSize={10} fontWeight="bold">
+                🇨🇳 {payload.name} {payload.dose} ({payload.weightLoss}%)
+              </text>
+            </g>
+          </g>
+        );
+      }
+
       return (
         <g 
           className="cursor-pointer"
@@ -821,6 +1086,22 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
     }
 
     if (isDimmed) {
+      if (isChinese) {
+        return (
+          <g 
+            opacity={0.12} 
+            className="cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDrug(payload.name);
+            }}
+          >
+            <line x1={cx - 4.2} y1={cy} x2={cx + 4.2} y2={cy} stroke={fill} strokeWidth={1.6} strokeLinecap="round" />
+            <line x1={cx} y1={cy - 4.2} x2={cx} y2={cy + 4.2} stroke={fill} strokeWidth={1.6} strokeLinecap="round" />
+          </g>
+        );
+      }
+
       return (
         <g 
           opacity={0.12} 
@@ -832,6 +1113,23 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
         >
           <line x1={cx - 3.5} y1={cy - 3.5} x2={cx + 3.5} y2={cy + 3.5} stroke={fill} strokeWidth={1.5} strokeLinecap="round" />
           <line x1={cx - 3.5} y1={cy + 3.5} x2={cx + 3.5} y2={cy - 3.5} stroke={fill} strokeWidth={1.5} strokeLinecap="round" />
+        </g>
+      );
+    }
+
+    if (isChinese) {
+      return (
+        <g 
+          className="cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleDrug(payload.name);
+          }}
+        >
+          {/* 中国药企专属：直角正十字 ✚ */}
+          <line x1={cx - 6.8} y1={cy} x2={cx + 6.8} y2={cy} stroke={fill} strokeWidth={3.0} strokeLinecap="round" />
+          <line x1={cx} y1={cy - 6.8} x2={cx} y2={cy + 6.8} stroke={fill} strokeWidth={3.0} strokeLinecap="round" />
+          <circle cx={cx} cy={cy} r={2} fill="#ffffff" stroke={fill} strokeWidth={0.8} />
         </g>
       );
     }
@@ -867,7 +1165,7 @@ export const SafetyAnalysisChart: React.FC<Props> = ({ studies, hoveredCategory 
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">X轴: 体重下降 (%) | Y轴: {ADVERSE_EVENT_CONFIG[activeTab].name} (%) | 悬停选项卡预览类别，点击下方标签锁定标点</p>
+            <p className="text-xs text-slate-500 mt-0.5">X轴: 体重下降 (%) | Y轴: {ADVERSE_EVENT_CONFIG[activeTab].name} (%) | ● 跨国非T2D | ✕ 跨国T2D | ◆ 中国药企非T2D | ✚ 中国药企T2D</p>
           </div>
           <div className="flex items-center flex-wrap gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-center">
             {Object.keys(ADVERSE_EVENT_CONFIG).map((key) => (
@@ -997,7 +1295,7 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
   // 高亮数据点计数
   const highlightedCount = useMemo(() => {
     if (isCategoryHoverActive) return categoryHoverCount;
-    if (selectedDrug) return data.filter(d => d.name === selectedDrug).length;
+    if (selectedDrug) return data.filter(d => isSameDrug(d.name, selectedDrug)).length;
     if (selectedCompany) return data.filter(d => d.company === selectedCompany).length;
     return 0;
   }, [data, isCategoryHoverActive, categoryHoverCount, selectedDrug, selectedCompany]);
@@ -1008,8 +1306,9 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
       color: string; 
       class: string; 
       company: string; 
-      companyHex: string;
+      companyHex: string; 
       colorFamilyName: string;
+      isChinese: boolean;
       category: DrugCategory; 
       formulation: string 
     }>();
@@ -1022,6 +1321,7 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
           company: item.company,
           companyHex: item.companyHex,
           colorFamilyName: item.colorFamilyName,
+          isChinese: Boolean(item.isChinese),
           category: item.category,
           formulation: item.formulation
         });
@@ -1032,7 +1332,8 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
       company: string;
       companyHex: string;
       colorFamilyName: string;
-      drugs: Array<{ name: string; color: string; class: string; category: DrugCategory; formulation: string }>;
+      isChinese: boolean;
+      drugs: Array<{ name: string; color: string; class: string; category: DrugCategory; formulation: string; isChinese: boolean }>;
     }> = {};
 
     items.forEach((info, drugName) => {
@@ -1041,6 +1342,7 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
           company: info.company,
           companyHex: info.companyHex,
           colorFamilyName: info.colorFamilyName,
+          isChinese: info.isChinese,
           drugs: []
         };
       }
@@ -1051,7 +1353,7 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
   }, [data]);
 
   const handleToggleDrug = (drugName: string) => {
-    if (selectedDrug === drugName) {
+    if (selectedDrug && isSameDrug(selectedDrug, drugName)) {
       setSelectedDrug(null);
     } else {
       setSelectedDrug(drugName);
@@ -1079,7 +1381,7 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
     if (cx === undefined || cy === undefined || !payload) return null;
 
     const isCategoryMatch = isCategoryHoverActive ? payload.category === hoveredCategory : false;
-    const isDrugMatch = selectedDrug ? payload.name === selectedDrug : false;
+    const isDrugMatch = selectedDrug ? isSameDrug(payload.name, selectedDrug) : false;
     const isCompanyMatch = selectedCompany ? payload.company === selectedCompany : false;
 
     // 当有选项卡 hover 时，优先高亮该类别；否则根据所选药物/公司高亮
@@ -1090,8 +1392,53 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
     const hasFilter = isCategoryHoverActive || Boolean(selectedDrug || selectedCompany);
     const isDimmed = hasFilter && !isHighlighted;
     const fill = payload.fill || '#2563eb';
+    const isChinese = Boolean(payload.isChinese || isChineseCompany(payload.company, payload.name));
 
     if (isHighlighted) {
+      if (isChinese) {
+        return (
+          <g 
+            className="cursor-pointer" 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDrug(payload.name);
+            }}
+          >
+            {/* 中国药企专属：呼吸外晕发光菱形 */}
+            <polygon 
+              points={`${cx},${cy - 18} ${cx + 18},${cy} ${cx},${cy + 18} ${cx - 18},${cy}`} 
+              fill={fill} 
+              fillOpacity={0.28} 
+              className="animate-pulse" 
+            />
+            <polygon 
+              points={`${cx},${cy - 11} ${cx + 11},${cy} ${cx},${cy + 11} ${cx - 11},${cy}`} 
+              fill={fill} 
+              stroke="#ffffff" 
+              strokeWidth={3} 
+              style={{ filter: 'drop-shadow(0px 3px 6px rgba(0,0,0,0.4))' }} 
+            />
+            <circle cx={cx} cy={cy} r={3.2} fill="#ffffff" />
+            {/* 浮动标签 */}
+            <g transform={`translate(${cx + 14}, ${cy - 14})`}>
+              <rect 
+                x={0} 
+                y={0} 
+                width={Math.max(82, (payload.name?.length || 0) * 7.5 + (payload.dose?.length || 0) * 5 + 46)} 
+                height={24} 
+                rx={6} 
+                fill="rgba(15, 23, 42, 0.94)" 
+                stroke="#f59e0b" 
+                strokeWidth={1.5} 
+              />
+              <text x={8} y={16} fill="#ffffff" fontSize={10} fontWeight="bold">
+                🇨🇳 {payload.name} {payload.dose} ({payload.y}%)
+              </text>
+            </g>
+          </g>
+        );
+      }
+
       return (
         <g 
           className="cursor-pointer" 
@@ -1133,6 +1480,24 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
     }
 
     if (isDimmed) {
+      if (isChinese) {
+        return (
+          <polygon 
+            points={`${cx},${cy - 4.5} ${cx + 4.5},${cy} ${cx},${cy + 4.5} ${cx - 4.5},${cy}`} 
+            fill={fill} 
+            fillOpacity={0.12} 
+            stroke="#94a3b8" 
+            strokeWidth={0.5} 
+            strokeOpacity={0.2} 
+            className="cursor-pointer transition-opacity duration-200"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDrug(payload.name);
+            }}
+          />
+        );
+      }
+
       return (
         <circle 
           cx={cx} 
@@ -1149,6 +1514,29 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
             handleToggleDrug(payload.name);
           }}
         />
+      );
+    }
+
+    if (isChinese) {
+      return (
+        <g 
+          className="cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleDrug(payload.name);
+          }}
+        >
+          {/* 中国药企专属：宝石晶莹菱形 ◆ */}
+          <polygon 
+            points={`${cx},${cy - 7} ${cx + 7},${cy} ${cx},${cy + 7} ${cx - 7},${cy}`} 
+            fill={fill} 
+            fillOpacity={0.92} 
+            stroke="#ffffff" 
+            strokeWidth={1.6} 
+            style={{ filter: 'drop-shadow(0px 1px 2px rgba(0,0,0,0.25))' }}
+          />
+          <circle cx={cx} cy={cy} r={1.6} fill="#ffffff" pointerEvents="none" />
+        </g>
       );
     }
 
@@ -1185,8 +1573,42 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
     const hasFilter = isCategoryHoverActive || Boolean(selectedDrug || selectedCompany);
     const isDimmed = hasFilter && !isHighlighted;
     const fill = payload.fill || '#2563eb';
+    const isChinese = Boolean(payload.isChinese || isChineseCompany(payload.company, payload.name));
 
     if (isHighlighted) {
+      if (isChinese) {
+        return (
+          <g 
+            className="cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDrug(payload.name);
+            }}
+          >
+            {/* 中国药企专属：高亮正十字光晕 ✚ */}
+            <circle cx={cx} cy={cy} r={18} fill={fill} fillOpacity={0.28} className="animate-pulse" />
+            <line x1={cx - 10.5} y1={cy} x2={cx + 10.5} y2={cy} stroke={fill} strokeWidth={5} strokeLinecap="round" style={{ filter: 'drop-shadow(0px 3px 5px rgba(0,0,0,0.35))' }} />
+            <line x1={cx} y1={cy - 10.5} x2={cx} y2={cy + 10.5} stroke={fill} strokeWidth={5} strokeLinecap="round" style={{ filter: 'drop-shadow(0px 3px 5px rgba(0,0,0,0.35))' }} />
+            <circle cx={cx} cy={cy} r={3} fill="#ffffff" />
+            <g transform={`translate(${cx + 14}, ${cy - 14})`}>
+              <rect 
+                x={0} 
+                y={0} 
+                width={Math.max(82, (payload.name?.length || 0) * 7.5 + (payload.dose?.length || 0) * 5 + 46)} 
+                height={24} 
+                rx={6} 
+                fill="rgba(15, 23, 42, 0.94)" 
+                stroke="#f59e0b" 
+                strokeWidth={1.5} 
+              />
+              <text x={8} y={16} fill="#ffffff" fontSize={10} fontWeight="bold">
+                🇨🇳 {payload.name} {payload.dose} ({payload.y}%)
+              </text>
+            </g>
+          </g>
+        );
+      }
+
       return (
         <g 
           className="cursor-pointer"
@@ -1219,6 +1641,22 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
     }
 
     if (isDimmed) {
+      if (isChinese) {
+        return (
+          <g 
+            opacity={0.12} 
+            className="cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleDrug(payload.name);
+            }}
+          >
+            <line x1={cx - 4.2} y1={cy} x2={cx + 4.2} y2={cy} stroke={fill} strokeWidth={1.6} strokeLinecap="round" />
+            <line x1={cx} y1={cy - 4.2} x2={cx} y2={cy + 4.2} stroke={fill} strokeWidth={1.6} strokeLinecap="round" />
+          </g>
+        );
+      }
+
       return (
         <g 
           opacity={0.12} 
@@ -1230,6 +1668,23 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
         >
           <line x1={cx - 3.5} y1={cy - 3.5} x2={cx + 3.5} y2={cy + 3.5} stroke={fill} strokeWidth={1.5} strokeLinecap="round" />
           <line x1={cx - 3.5} y1={cy + 3.5} x2={cx + 3.5} y2={cy - 3.5} stroke={fill} strokeWidth={1.5} strokeLinecap="round" />
+        </g>
+      );
+    }
+
+    if (isChinese) {
+      return (
+        <g 
+          className="cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleDrug(payload.name);
+          }}
+        >
+          {/* 中国药企专属：直角正十字 ✚ */}
+          <line x1={cx - 6.8} y1={cy} x2={cx + 6.8} y2={cy} stroke={fill} strokeWidth={3.0} strokeLinecap="round" />
+          <line x1={cx} y1={cy - 6.8} x2={cx} y2={cy + 6.8} stroke={fill} strokeWidth={3.0} strokeLinecap="round" />
+          <circle cx={cx} cy={cy} r={2} fill="#ffffff" stroke={fill} strokeWidth={0.8} />
         </g>
       );
     }
@@ -1263,7 +1718,7 @@ export const DurationEfficacyScatterChart: React.FC<Props> = ({ studies, hovered
             </span>
           )}
         </div>
-        <p className="text-xs text-slate-500 mb-2">X轴: 试验周期 (周) | Y轴: 体重下降幅度 (%) | ○ 圆点: 非糖尿病 | ✕ 叉形: T2D | 悬停选项卡预览类别，点击下方标签锁定标点</p>
+        <p className="text-xs text-slate-500 mb-2">X轴: 试验周期 (周) | Y轴: 体重下降幅度 (%) | ● 跨国非T2D | ✕ 跨国T2D | ◆ 中国药企非T2D | ✚ 中国药企T2D</p>
       </div>
 
       {data.length === 0 ? (

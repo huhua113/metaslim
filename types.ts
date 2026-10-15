@@ -81,14 +81,18 @@ export const getStudyDrugCategory = (study: {
     return 'amylin';
   }
 
-  // 2. 三靶点 (Triple Agonist, GIP/GLP-1/GCG, Retatrutide, 瑞他鲁肽, LY3437943)
+  // 2. 三靶点 (Triple Agonist, GIP/GLP-1/GCG, Retatrutide, 瑞他鲁肽, LY3437943, UBT251, UTB251)
   if (
     dClass.includes('TRIPLE') ||
     dClass.includes('三靶点') ||
     (dClass.includes('GIP') && dClass.includes('GLP') && (dClass.includes('GCG') || dClass.includes('GLUCAGON'))) ||
     name.includes('retatrutide') ||
     name.includes('瑞他') ||
-    name.includes('ly3437943')
+    name.includes('ly3437943') ||
+    name.includes('ubt251') ||
+    name.includes('utb251') ||
+    name.includes('ubt') ||
+    name.includes('utb')
   ) {
     return 'triple';
   }
@@ -164,6 +168,81 @@ export const getStudyDrugCategory = (study: {
 
   // 7. 其他创新靶点/机制
   return 'other';
+};
+
+/**
+ * 标准化药物名称，确保同一种药物的不同拼写、简称与复方表述自动统一归一
+ * 规则要求：cagrisema、cagri+sema、cagrilintide+semaglutide、卡格列肽+司美格鲁肽 等均算做同一种药物 -> 统一归一化为 "CagriSema"
+ */
+export const normalizeDrugName = (rawName: string = ''): string => {
+  const trimmed = rawName.trim();
+  if (!trimmed) return '';
+
+  const lower = trimmed.toLowerCase().replace(/[\s_\-–—]/g, '');
+
+  // 1. 卡格列肽 + 司美格鲁肽 (CagriSema) 的各种变体统一处理为 CagriSema
+  if (
+    lower.includes('cagrisema') ||
+    lower.includes('cagri+sema') ||
+    lower.includes('cagri/sema') ||
+    (lower.includes('cagri') && lower.includes('sema')) ||
+    (lower.includes('cagrilintide') && lower.includes('semaglutide')) ||
+    (lower.includes('卡格') && lower.includes('司美')) ||
+    lower.includes('卡格司美')
+  ) {
+    return 'CagriSema';
+  }
+
+  // 2. 联邦制药/诺和诺德 UBT251 / UTB251 三靶点激动剂互通归一
+  if (
+    lower === 'ubt251' ||
+    lower === 'utb251' ||
+    lower.includes('ubt251') ||
+    lower.includes('utb251') ||
+    lower.includes('联邦三靶点')
+  ) {
+    return 'UBT251 (UTB251)';
+  }
+
+  // 3. 其他知名药物标准英文名/首字母大写转换
+  if (lower === 'semaglutide' || lower === '司美格鲁肽') return 'Semaglutide';
+  if (lower === 'tirzepatide' || lower === '替尔泊肽') return 'Tirzepatide';
+  if (lower === 'retatrutide' || lower === '瑞他鲁肽') return 'Retatrutide';
+  if (lower === 'ecnoglutide' || lower === '依诺格鲁肽') return 'Ecnoglutide';
+  if (lower === 'mazdutide' || lower === '玛仕度肽') return 'Mazdutide';
+  if (lower === 'survodutide' || lower === '索沃杜肽') return 'Survodutide';
+  if (lower === 'orforglipron' || lower === '奥福格列酮') return 'Orforglipron';
+  if (lower === 'danuglipron' || lower === '达格列朋') return 'Danuglipron';
+  if (lower === 'amycretin' || lower === '艾米克雷汀') return 'Amycretin';
+
+  // 默认保持首字母大写
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
+
+/**
+ * 判断两个药物名称是否指向同一种药物
+ * 无论传入 cagrisema 还是 cagri+sema，或 ubt251 还是 utb251 均返回 true
+ */
+export const isSameDrug = (nameA: string = '', nameB: string = ''): boolean => {
+  if (!nameA || !nameB) return false;
+  const normA = normalizeDrugName(nameA);
+  const normB = normalizeDrugName(nameB);
+  if (normA && normB && normA.toLowerCase() === normB.toLowerCase()) {
+    return true;
+  }
+  // 兜底：忽略所有符号与空格对比
+  const cleanA = (nameA || '').toLowerCase().replace(/[\s_\-–—+()\/]/g, '');
+  const cleanB = (nameB || '').toLowerCase().replace(/[\s_\-–—+()\/]/g, '');
+  if (cleanA === cleanB) return true;
+
+  if (
+    (cleanA.includes('ubt251') || cleanA.includes('utb251')) &&
+    (cleanB.includes('ubt251') || cleanB.includes('utb251'))
+  ) {
+    return true;
+  }
+
+  return false;
 };
 
 export interface ExtractionStatus {

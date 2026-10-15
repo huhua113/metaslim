@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Study, DoseData } from '../types';
+import { Study, DoseData, normalizeDrugName } from '../types';
 import { addStudy } from '../services/firebaseService';
 
 interface Props {
@@ -78,7 +78,7 @@ const ManualAddModal: React.FC<Props> = ({ isOpen, onClose }) => {
     try {
       const cleanedData = {
           ...formData,
-          drugName: formData.drugName.charAt(0).toUpperCase() + formData.drugName.slice(1).toLowerCase(),
+          drugName: normalizeDrugName(formData.drugName),
       };
       await addStudy(cleanedData);
       onClose(); // Close modal on success

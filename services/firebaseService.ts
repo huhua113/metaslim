@@ -12,7 +12,7 @@ import {
   updateDoc,
   Firestore
 } from "firebase/firestore";
-import { Study } from "../types";
+import { Study, normalizeDrugName } from "../types";
 import { firebaseConfig } from "../appCredentials"; // <-- 从新的配置文件导入
 import { MOCK_STUDIES } from "../mockData";
 
@@ -28,15 +28,20 @@ const getLocalStudies = (): Study[] => {
     try {
       const parsed = JSON.parse(stored) as Study[];
       if (Array.isArray(parsed) && parsed.length > 0) {
+        // 自动规范化可能存在的旧别名（如 cagri+sema 归一为 CagriSema）
+        const normalizedParsed = parsed.map(s => ({
+          ...s,
+          drugName: normalizeDrugName(s.drugName)
+        }));
         // 自动补充尚未包含的预置临床基准研究 (避免重复)
-        const existingKeys = new Set(parsed.map(s => `${(s.drugName || '').trim()}_${(s.trialName || '').trim()}`.toLowerCase()));
-        const missingMocks = MOCK_STUDIES.filter(m => !existingKeys.has(`${m.drugName.trim()}_${m.trialName.trim()}`.toLowerCase()));
+        const existingKeys = new Set(normalizedParsed.map(s => `${(s.drugName || '').trim()}_${(s.trialName || '').trim()}`.toLowerCase()));
+        const missingMocks = MOCK_STUDIES.filter(m => !existingKeys.has(`${normalizeDrugName(m.drugName).trim()}_${m.trialName.trim()}`.toLowerCase()));
         if (missingMocks.length > 0) {
-          const merged = [...parsed, ...missingMocks];
+          const merged = [...normalizedParsed, ...missingMocks];
           saveLocalStudies(merged);
           return merged;
         }
-        return parsed;
+        return normalizedParsed;
       }
     } catch (e) {
       console.error("Failed to parse local studies:", e);
@@ -67,10 +72,15 @@ const COLLECTION_NAME = "weight_loss_studies";
 const isFirebaseEnabled = () => !!db;
 
 export const addStudy = async (studyData: Omit<Study, 'id' | 'createdAt'>) => {
+  const normalizedData = {
+    ...studyData,
+    drugName: normalizeDrugName(studyData.drugName)
+  };
+
   if (isFirebaseEnabled()) {
     try {
       await addDoc(collection(db!, COLLECTION_NAME), {
-        ...studyData,
+        ...normalizedData,
         createdAt: Date.now()
       });
       return;
@@ -82,7 +92,7 @@ export const addStudy = async (studyData: Omit<Study, 'id' | 'createdAt'>) => {
   // 本地回退
   const studies = getLocalStudies();
   const newStudy: Study = {
-    ...studyData,
+    ...normalizedData,
     id: `local-${Date.now()}`,
     createdAt: Date.now()
   };
@@ -91,10 +101,15 @@ export const addStudy = async (studyData: Omit<Study, 'id' | 'createdAt'>) => {
 };
 
 export const updateStudy = async (id: string, studyData: Partial<Omit<Study, 'id'>>) => {
+  const normalizedData = {
+    ...studyData,
+    ...(studyData.drugName ? { drugName: normalizeDrugName(studyData.drugName) } : {})
+  };
+
   if (isFirebaseEnabled()) {
     try {
       const studyRef = doc(db!, COLLECTION_NAME, id);
-      await updateDoc(studyRef, studyData);
+      await updateDoc(studyRef, normalizedData);
       return;
     } catch (e) {
       console.error("Error updating Firebase: ", e);
@@ -105,7 +120,7 @@ export const updateStudy = async (id: string, studyData: Partial<Omit<Study, 'id
   const studies = getLocalStudies();
   const index = studies.findIndex(s => s.id === id);
   if (index !== -1) {
-    studies[index] = { ...studies[index], ...studyData };
+    studies[index] = { ...studies[index], ...normalizedData };
     saveLocalStudies(studies);
     window.dispatchEvent(new Event('local-studies-changed'));
   }
@@ -182,6 +197,7 @@ const normalizeCompany = (company: string): string => {
   if (c.includes('PFIZER') || c.includes('辉瑞')) return 'Pfizer';
   if (c.includes('ROCHE') || c.includes('罗氏') || c.includes('CARMOT')) return 'Roche';
   if (c.includes('SANOFI') || c.includes('赛诺菲')) return 'Sanofi';
+  if (c.includes('UNITED') || c.includes('联邦') || c.includes('TUL')) return 'United Laboratories';
   return company.trim();
 };
 
@@ -190,7 +206,7 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
     // 提供初始数据并监听本地变更
     const update = () => {
       const studies = getLocalStudies().map(s => {
-        const drugName = s.drugName ? (s.drugName.charAt(0).toUpperCase() + s.drugName.slice(1).toLowerCase()) : s.drugName;
+        const drugName = normalizeDrugName(s.drugName);
         let company = s.company;
         if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
           company = 'Pfizer';
@@ -211,10 +227,7 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
     const studies: Study[] = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
-      let drugName = data.drugName;
-      if (drugName && typeof drugName === 'string') {
-          drugName = drugName.charAt(0).toUpperCase() + drugName.slice(1).toLowerCase();
-      }
+      const drugName = normalizeDrugName(data.drugName);
       
       let company = data.company;
       // 特殊规则：Ecnoglutide 属于辉瑞 (Pfizer)
@@ -228,9 +241,9 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
     });
 
     // 智能合并标准基准队列，确保各类别的临床数据完整呈现
-    const existingKeys = new Set(studies.map(s => `${(s.drugName || '').trim()}_${(s.trialName || '').trim()}`.toLowerCase()));
-    const missingBenchmarks = MOCK_STUDIES.filter(m => !existingKeys.has(`${m.drugName.trim()}_${m.trialName.trim()}`.toLowerCase())).map(s => {
-      const drugName = s.drugName ? (s.drugName.charAt(0).toUpperCase() + s.drugName.slice(1).toLowerCase()) : s.drugName;
+    const existingKeys = new Set(studies.map(s => `${normalizeDrugName(s.drugName || '').trim()}_${(s.trialName || '').trim()}`.toLowerCase()));
+    const missingBenchmarks = MOCK_STUDIES.filter(m => !existingKeys.has(`${normalizeDrugName(m.drugName).trim()}_${m.trialName.trim()}`.toLowerCase())).map(s => {
+      const drugName = normalizeDrugName(s.drugName);
       let company = s.company;
       if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
         company = 'Pfizer';
@@ -246,7 +259,7 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
       console.error("Firebase subscription error: ", error);
       // 发生错误时尝试回退到本地数据
       const studies = getLocalStudies().map(s => {
-        const drugName = s.drugName ? (s.drugName.charAt(0).toUpperCase() + s.drugName.slice(1).toLowerCase()) : s.drugName;
+        const drugName = normalizeDrugName(s.drugName);
         let company = s.company;
         if (drugName && drugName.toLowerCase().includes('ecnoglutide')) {
           company = 'Pfizer';
@@ -255,6 +268,6 @@ export const subscribeToStudies = (callback: (studies: Study[]) => void) => {
         }
         return { ...s, drugName, company };
       });
-      callback(studies);
+      callback(studies.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
   });
 };

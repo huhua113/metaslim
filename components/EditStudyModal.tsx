@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Study, DoseData } from '../types';
+import { Study, DoseData, normalizeDrugName } from '../types';
 import { updateStudy } from '../services/firebaseService';
 
 interface Props {
@@ -64,7 +64,7 @@ const EditStudyModal: React.FC<Props> = ({ isOpen, onClose, study }) => {
       
       const cleanedData = {
           ...dataToUpdate,
-          drugName: dataToUpdate.drugName.charAt(0).toUpperCase() + dataToUpdate.drugName.slice(1).toLowerCase(),
+          drugName: normalizeDrugName(dataToUpdate.drugName),
           durationWeeks: Number(dataToUpdate.durationWeeks) || 0,
           doses: dataToUpdate.doses.map((d: any) => ({
               ...d,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Study, DoseData, DrugCategory, DRUG_CATEGORIES, getStudyDrugCategory } from './types';
+import { Study, DoseData, DrugCategory, DRUG_CATEGORIES, getStudyDrugCategory, normalizeDrugName, isSameDrug } from './types';
 import { 
   subscribeToStudies, 
   deleteStudy, 
@@ -373,9 +373,11 @@ const App: React.FC = () => {
         const lowercasedTerm = searchTerm.toLowerCase();
         studiesToFilter = studiesToFilter.filter(study => 
             (study.drugName || '').toLowerCase().includes(lowercasedTerm) ||
+            isSameDrug(study.drugName, searchTerm) ||
             (study.company || '').toLowerCase().includes(lowercasedTerm) ||
             (study.trialName || '').toLowerCase().includes(lowercasedTerm) ||
-            (study.drugClass || '').toLowerCase().includes(lowercasedTerm)
+            (study.drugClass || '').toLowerCase().includes(lowercasedTerm) ||
+            (study.summary || '').toLowerCase().includes(lowercasedTerm)
         );
     }
 
@@ -393,7 +395,9 @@ const App: React.FC = () => {
       const direction = sortConfig.direction === 'asc' ? 1 : -1;
 
       if (sortConfig.key === 'drugName') {
-        const drugNameComparison = a.drugName.localeCompare(b.drugName, 'zh-Hans-CN');
+        const nameA = normalizeDrugName(a.drugName);
+        const nameB = normalizeDrugName(b.drugName);
+        const drugNameComparison = nameA.localeCompare(nameB, 'zh-Hans-CN');
         if (drugNameComparison !== 0) return drugNameComparison * direction;
         const phaseComparison = getPhaseNumber(a.phase) - getPhaseNumber(b.phase);
         if (phaseComparison !== 0) return phaseComparison * direction;

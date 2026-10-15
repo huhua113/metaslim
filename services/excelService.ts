@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Study, DoseData } from '../types';
+import { Study, DoseData, normalizeDrugName } from '../types';
 
 /**
  * 临床研究 Excel 导入导出与解析服务
@@ -152,11 +152,31 @@ export const parseExcelFile = async (file: File): Promise<Omit<Study, 'id' | 'cr
             continue;
           }
 
-          // 标准化药物名（首字母大写）
-          const drugName = rawDrug.charAt(0).toUpperCase() + rawDrug.slice(1);
+          // 标准化药物名（包括 cagrisema、cagri+sema 等统一归一化为 CagriSema）
+          const drugName = normalizeDrugName(rawDrug);
           const trialName = rawTrial;
-          const company = String(row.company || '').trim() || '其他药企';
-          const drugClass = String(row.drugClass || '').trim() || 'GLP-1 RA';
+          let company = String(row.company || '').trim();
+          if (!company || company === '其他药企') {
+            if (drugName === 'CagriSema') {
+              company = 'Novo Nordisk';
+            } else if (drugName === 'Ecnoglutide') {
+              company = 'Pfizer';
+            } else if (drugName.toLowerCase().includes('ubt') || drugName.toLowerCase().includes('utb')) {
+              company = 'United Laboratories';
+            } else {
+              company = '其他药企';
+            }
+          }
+          let drugClass = String(row.drugClass || '').trim();
+          if (!drugClass) {
+            if (drugName === 'CagriSema') {
+              drugClass = 'Amylin/GLP-1 RA';
+            } else if (drugName.toLowerCase().includes('ubt') || drugName.toLowerCase().includes('utb')) {
+              drugClass = 'GLP-1/GIP/GCG';
+            } else {
+              drugClass = 'GLP-1 RA';
+            }
+          }
           const phase = String(row.phase || '').trim() || 'Phase 3';
           const hasT2D = parseBoolean(row.hasT2D);
           const isChineseCohort = parseBoolean(row.isChineseCohort);
@@ -425,6 +445,46 @@ export const downloadExcelTemplate = () => {
       '便秘发生率(%)': 15.0,
       'SAE发生率(%)': 3.5,
       '研究总结': '依诺格鲁肽中国2期减重研究，24周减重14.7%',
+    },
+    {
+      '药物名称': 'CagriSema',
+      '研发企业': '诺和诺德',
+      '靶点机制': 'Amylin/GLP-1 RA',
+      '临床试验名称': 'REDEFINE 1',
+      '临床阶段': 'Phase 3',
+      '是否伴糖尿病': '否',
+      '是否中国人群': '否',
+      '治疗周期(周)': 68,
+      '给药途径': '皮下注射',
+      '给药频次': '每周一次',
+      '剂量': '2.4mg/2.4mg',
+      '减重百分比(%)': 22.7,
+      '恶心发生率(%)': 55.0,
+      '呕吐发生率(%)': 26.1,
+      '腹泻发生率(%)': 24.0,
+      '便秘发生率(%)': 30.7,
+      'SAE发生率(%)': 4.0,
+      '研究总结': 'REDEFINE 1关键III期：CagriSema治疗无糖尿病肥胖人群，68周平均减重达22.7%',
+    },
+    {
+      '药物名称': 'UBT251',
+      '研发企业': '联邦制药',
+      '靶点机制': 'GLP-1/GIP/GCG',
+      '临床试验名称': 'Phase 2 (中国肥胖/超重)',
+      '临床阶段': 'Phase 2',
+      '是否伴糖尿病': '否',
+      '是否中国人群': '是',
+      '治疗周期(周)': 24,
+      '给药途径': '皮下注射',
+      '给药频次': '每周一次',
+      '剂量': '6mg',
+      '减重百分比(%)': 19.7,
+      '恶心发生率(%)': 32.0,
+      '呕吐发生率(%)': 9.5,
+      '腹泻发生率(%)': 18.0,
+      '便秘发生率(%)': 14.0,
+      'SAE发生率(%)': 0.0,
+      '研究总结': '中国肥胖II期临床：24周6mg减重达19.7%(-17.5kg)，对标瑞他鲁肽，全面改善代谢',
     },
   ];
 

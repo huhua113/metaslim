@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { extractTextFromPDF, analyzeMedicalText, analyzeMedicalImage } from '../services/geminiService';
 import { parseExcelFile, downloadExcelTemplate } from '../services/excelService';
 import { addStudy, updateStudy } from '../services/firebaseService';
-import { Study } from '../types';
+import { Study, normalizeDrugName, isSameDrug } from '../types';
 
 interface Props {
   isOpen: boolean;
@@ -96,18 +96,24 @@ const ExtractionModal: React.FC<Props> = ({ isOpen, onClose, studies }) => {
         continue;
       }
 
+      // 规范化药物名称（将 cagrisema、cagri+sema 等统一归一为 CagriSema）
+      const normalizedStudyData = {
+        ...studyData,
+        drugName: normalizeDrugName(studyData.drugName),
+      };
+
       const existingStudy = studies.find(existing =>
-        existing.drugName.trim().toLowerCase() === studyData.drugName.trim().toLowerCase() &&
-        existing.trialName.trim().toLowerCase() === studyData.trialName.trim().toLowerCase() &&
-        existing.hasT2D === studyData.hasT2D &&
-        existing.isChineseCohort === studyData.isChineseCohort
+        isSameDrug(existing.drugName, normalizedStudyData.drugName) &&
+        existing.trialName.trim().toLowerCase() === normalizedStudyData.trialName.trim().toLowerCase() &&
+        existing.hasT2D === normalizedStudyData.hasT2D &&
+        existing.isChineseCohort === normalizedStudyData.isChineseCohort
       );
 
       if (existingStudy) {
-        await updateStudy(existingStudy.id, studyData);
+        await updateStudy(existingStudy.id, normalizedStudyData);
         studiesUpdatedCount++;
       } else {
-        await addStudy(studyData);
+        await addStudy(normalizedStudyData);
         studiesAddedCount++;
       }
     }

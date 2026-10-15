@@ -474,6 +474,91 @@ export const MOCK_STUDIES: Study[] = [
   },
 
   // 14. 胰淀素+ 复方激动剂 - 诺和诺德 卡格列肽+司美格鲁肽 CagriSema (蓝色系)
+  // 14-a. REDEFINE 1 关键 III 期（非糖尿病肥胖，68周）
+  {
+    id: "mock-14-redefine-1",
+    drugName: "CagriSema",
+    drugClass: "Amylin/GLP-1 RA",
+    company: "Novo Nordisk",
+    trialName: "REDEFINE 1 (Phase 3)",
+    phase: "Phase 3",
+    hasT2D: false,
+    isChineseCohort: false,
+    durationWeeks: 68,
+    formulation: "皮下注射",
+    frequency: "每周一次",
+    summary: "诺和诺德全球关键III期REDEFINE 1研究（N=3417，基线体重106.9kg，非糖尿病超重/肥胖）：评估每周一次CagriSema (2.4mg/2.4mg)。68周试验依从人群平均减重达 22.7%（意向性分析 20.4%），40.4%受试者减重≥25%，60%减重≥20%，23%减重≥30%。",
+    createdAt: Date.now() - 6100000,
+    doses: [
+      {
+        dose: "2.4mg/2.4mg",
+        weightLossPercent: 22.7,
+        nauseaPercent: 55.0,
+        vomitingPercent: 26.1,
+        diarrheaPercent: 24.0,
+        constipationPercent: 30.7,
+        saePercent: 4.0
+      }
+    ]
+  },
+
+  // 14-b. REDEFINE 2 关键 III 期（伴2型糖尿病超重/肥胖，68周）
+  {
+    id: "mock-14-redefine-2",
+    drugName: "CagriSema",
+    drugClass: "Amylin/GLP-1 RA",
+    company: "Novo Nordisk",
+    trialName: "REDEFINE 2 (Phase 3)",
+    phase: "Phase 3",
+    hasT2D: true,
+    isChineseCohort: false,
+    durationWeeks: 68,
+    formulation: "皮下注射",
+    frequency: "每周一次",
+    summary: "诺和诺德关键III期REDEFINE 2研究（N=1206，2型糖尿病伴超重/肥胖）：评估每周一次CagriSema在T2D人群中的疗效。68周试验依从人群平均减重达 15.7%（意向性分析 13.7%），89.7%患者减重≥5%，74%患者HbA1c降至≤6.5%。",
+    createdAt: Date.now() - 6200000,
+    doses: [
+      {
+        dose: "2.4mg/2.4mg",
+        weightLossPercent: 15.7,
+        nauseaPercent: 35.0,
+        vomitingPercent: 13.0,
+        diarrheaPercent: 20.0,
+        constipationPercent: 16.0,
+        saePercent: 4.5
+      }
+    ]
+  },
+
+  // 14-c. REDEFINE 4 关键 III 期头对头试验（vs 替尔泊肽 15mg，84周）
+  {
+    id: "mock-14-redefine-4",
+    drugName: "CagriSema",
+    drugClass: "Amylin/GLP-1 RA",
+    company: "Novo Nordisk",
+    trialName: "REDEFINE 4 (头对头 vs 替尔泊肽)",
+    phase: "Phase 3",
+    hasT2D: false,
+    isChineseCohort: false,
+    durationWeeks: 84,
+    formulation: "皮下注射",
+    frequency: "每周一次",
+    summary: "为期84周的开放标签III期头对头优效性研究（N=809，肥胖合并合并症）：直接对标礼来替尔泊肽15mg。CagriSema达成 23.0% 减重（意向性分析 20.2%），替尔泊肽达成 25.5%，展现长达84周的持久强劲减重效果与耐受性。",
+    createdAt: Date.now() - 6300000,
+    doses: [
+      {
+        dose: "2.4mg/2.4mg",
+        weightLossPercent: 23.0,
+        nauseaPercent: 48.0,
+        vomitingPercent: 22.0,
+        diarrheaPercent: 23.0,
+        constipationPercent: 25.0,
+        saePercent: 4.8
+      }
+    ]
+  },
+
+  // 14-d. Phase 2 早期二期临床研究（Lancet）
   {
     id: "mock-14",
     drugName: "CagriSema",
@@ -553,6 +638,145 @@ export const MOCK_STUDIES: Study[] = [
         diarrheaPercent: 19.0,
         constipationPercent: 11.0,
         saePercent: 3.0
+      }
+    ]
+  },
+
+  // 17. 三靶点受体激动剂 - 联邦制药 / 诺和诺德 UBT251 / UTB251 (GLP-1/GIP/GCG，靛蓝系)
+  // 17-a. 中国超重/肥胖 Phase 2 关键临床研究（24周）
+  {
+    id: "mock-17-ubt251-phase2-obesity",
+    drugName: "UBT251 (UTB251)",
+    drugClass: "GLP-1/GIP/GCG",
+    company: "United Laboratories",
+    trialName: "Phase 2 (中国肥胖/超重)",
+    phase: "Phase 2",
+    hasT2D: false,
+    isChineseCohort: true,
+    durationWeeks: 24,
+    formulation: "皮下注射",
+    frequency: "每周一次",
+    summary: "联邦制药研发、诺和诺德全球合作的长效三靶点激动剂。中国205例超重/肥胖II期临床（基线BMI 33.1），24周6mg组减重高达 19.7%（-17.5kg，安慰剂-2.0%），对标瑞他鲁肽；腰围、血压、血脂全面改善，无任何因不良反应导致的退出。",
+    createdAt: Date.now() - 5800000,
+    doses: [
+      {
+        dose: "6mg",
+        weightLossPercent: 19.7,
+        nauseaPercent: 32.0,
+        vomitingPercent: 9.5,
+        diarrheaPercent: 18.0,
+        constipationPercent: 14.0,
+        saePercent: 0.0
+      },
+      {
+        dose: "4mg",
+        weightLossPercent: 15.8,
+        nauseaPercent: 25.0,
+        vomitingPercent: 7.0,
+        diarrheaPercent: 15.0,
+        constipationPercent: 12.0,
+        saePercent: 0.0
+      },
+      {
+        dose: "2mg",
+        weightLossPercent: 11.5,
+        nauseaPercent: 18.0,
+        vomitingPercent: 4.0,
+        diarrheaPercent: 12.0,
+        constipationPercent: 10.0,
+        saePercent: 0.0
+      }
+    ]
+  },
+
+  // 17-b. 中国2型糖尿病 Phase 2 临床研究（24周）
+  {
+    id: "mock-17-ubt251-phase2-t2d",
+    drugName: "UBT251 (UTB251)",
+    drugClass: "GLP-1/GIP/GCG",
+    company: "United Laboratories",
+    trialName: "Phase 2 (中国T2D)",
+    phase: "Phase 2",
+    hasT2D: true,
+    isChineseCohort: true,
+    durationWeeks: 24,
+    formulation: "皮下注射",
+    frequency: "每周一次",
+    summary: "中国2型糖尿病II期研究：24周6mg组实现 HbA1c 显著降低达 2.16%，减重达 9.8%，疗效显著击败司美格鲁肽1mg阳性对照组（HbA1c降1.77%，减重4.8%）及安慰剂组。",
+    createdAt: Date.now() - 5900000,
+    doses: [
+      {
+        dose: "6mg",
+        weightLossPercent: 9.8,
+        nauseaPercent: 28.0,
+        vomitingPercent: 8.0,
+        diarrheaPercent: 16.0,
+        constipationPercent: 12.0,
+        saePercent: 1.0
+      },
+      {
+        dose: "4mg",
+        weightLossPercent: 7.5,
+        nauseaPercent: 20.0,
+        vomitingPercent: 5.0,
+        diarrheaPercent: 13.0,
+        constipationPercent: 10.0,
+        saePercent: 0.5
+      },
+      {
+        dose: "2mg",
+        weightLossPercent: 5.2,
+        nauseaPercent: 14.0,
+        vomitingPercent: 3.0,
+        diarrheaPercent: 10.0,
+        constipationPercent: 8.0,
+        saePercent: 0.0
+      }
+    ]
+  },
+
+  // 17-c. Phase 1b 多次递增剂量试验（MAD，12周）
+  {
+    id: "mock-17-ubt251-phase1b-mad",
+    drugName: "UBT251 (UTB251)",
+    drugClass: "GLP-1/GIP/GCG",
+    company: "United Laboratories",
+    trialName: "Phase 1b (MAD)",
+    phase: "Phase 1",
+    hasT2D: false,
+    isChineseCohort: true,
+    durationWeeks: 12,
+    formulation: "皮下注射",
+    frequency: "每周一次",
+    summary: "中国首个进入临床的三靶点GLP-1/GIP/GCG激动剂多次剂量递增（MAD）早期研究，超重或肥胖受试者在仅12周内减重达 8.96kg ~ 13.48kg（-13.5%），展现出强劲的早期快速起效特征。",
+    createdAt: Date.now() - 6000000,
+    doses: [
+      {
+        dose: "6mg",
+        weightLossPercent: 13.5,
+        nauseaPercent: 30.0,
+        vomitingPercent: 8.0,
+        diarrheaPercent: 15.0,
+        constipationPercent: 10.0,
+        saePercent: 0.0
+      },
+      {
+        dose: "3mg",
+        weightLossPercent: 9.8,
+        nauseaPercent: 20.0,
+        vomitingPercent: 5.0,
+        diarrheaPercent: 12.0,
+        constipationPercent: 8.0,
+        saePercent: 0.0
+      },
+      {
+        dose: "1mg",
+        weightLossPercent: 6.2,
+        nauseaPercent: 12.0,
+        vomitingPercent: 2.0,
+        diarrheaPercent: 8.0,
+        constipationPercent: 6.0,
+        saePercent: 0.0
       }
     ]
   }
